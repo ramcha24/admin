@@ -1,0 +1,49 @@
+{
+  "name": "admin",
+  "version": "1.0.0",
+  "description": "Admin — personal OS dashboard for managing tools",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "bash dev.sh",
+    "build": "vite build",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-rebuild -f -w better-sqlite3 --electron-version 28.2.0",
+    "package": "vite build && electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.personal.admin",
+    "productName": "Admin",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0",
+    "better-sqlite3": "^9.4.3"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "concurrently": "^8.2.2",
+    "electron": "^28.2.0",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
+    "lucide-react": "^0.344.0",
+    "postcss": "^8.4.35",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^3.4.1",
+    "vite": "^4.5.3"
+  },
+  "productName": "Admin"
+}
