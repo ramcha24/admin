@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, Trash2, Toggle3Right, GitBranch } from 'lucide-react'
+import { Plus, Trash2, ToggleRight, GitBranch } from 'lucide-react'
 
 const TOOLS     = ['grove', 'think']
 const GROVE_EVENTS  = ['session_logged', 'streak_update']
@@ -33,7 +33,7 @@ function WorkflowRow({ workflow, onToggle, onDelete }) {
         <button onClick={onToggle}
           className={`p-1.5 rounded-lg transition-colors ${workflow.enabled ? 'text-indigo-500 hover:bg-indigo-50' : 'text-gray-400 hover:bg-gray-50'}`}
           title={workflow.enabled ? 'Pause' : 'Enable'}>
-          <Toggle3Right size={16} />
+          <ToggleRight size={16} />
         </button>
         <button onClick={onDelete}
           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-gray-50 transition-colors">
