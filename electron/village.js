@@ -395,17 +395,19 @@ function startVillageServer() {
       req.on('data', d => body += d)
       req.on('end', () => {
         try {
-          const { activity_id, member_id, type, payload } = JSON.parse(body)
+          const { activity_id, member_id, type, payload, member_name } = JSON.parse(body)
           const { getDb } = require('./database')
           const db = getDb()
           const member = db.prepare('SELECT * FROM village_members WHERE id=?').get(member_id)
           if (!member) return json(res, { error: 'Unknown member' }, 403)
 
+          // Use member_name from payload if provided, else fall back to DB name
+          const displayName = member_name || member.name
           const id = `interaction-${Date.now()}-${Math.random().toString(36).slice(2)}`
           db.prepare(`
             INSERT INTO village_interactions (id, activity_id, member_id, member_name, type, payload)
             VALUES (?, ?, ?, ?, ?, ?)
-          `).run(id, activity_id, member_id, member.name, type ?? 'comment', JSON.stringify(payload ?? {}))
+          `).run(id, activity_id, member_id, displayName, type ?? 'comment', JSON.stringify(payload ?? {}))
           json(res, { ok: true, id })
         } catch (e) {
           json(res, { error: e.message }, 400)

@@ -218,6 +218,16 @@ Acceptance criteria:
 - Shows streak day count and hours this week (for reader+)
 - Card does not appear if streak is 0
 
+### 6.4 Members identify themselves before commenting
+**As a village member, I am prompted to enter my display name before commenting, so that my comments appear with a friendly name rather than an opaque ID.**
+
+Acceptance criteria:
+- On first visit (or if no name is stored), a sticky banner at the bottom asks "Your name (for comments)"
+- The banner does not block reading the feed
+- Entering a name and clicking Save stores it in localStorage for this feed URL
+- All subsequent comments on this device use the stored name
+- The name banner does not reappear on future visits to the same feed URL
+
 ### 6.3 Commenter-level members can leave comments
 **As a village member with commenter or collaborator access, I can type a comment on a session, so that I can react to specific activity.**
 
