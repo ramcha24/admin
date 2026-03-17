@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Save, Check, Mail, Send } from 'lucide-react'
+import { Save, Check, Mail, Send, Database } from 'lucide-react'
 
 const CLAUDE_MODELS = [
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (fast, cheap)' },
@@ -10,6 +10,16 @@ const CLAUDE_MODELS = [
 export default function SettingsPage() {
   const [digestResult, setDigestResult] = useState(null)
   const [sendingDigest, setSendingDigest] = useState(false)
+  const [seedResult, setSeedResult] = useState(null)
+  const [seeding, setSeeding] = useState(false)
+
+  const runSeed = async () => {
+    setSeeding(true)
+    setSeedResult(null)
+    const r = await window.api.runSeed()
+    setSeedResult(r)
+    setSeeding(false)
+  }
 
   const sendDigest = async () => {
     setSendingDigest(true)
@@ -231,6 +241,25 @@ export default function SettingsPage() {
           {saved ? <Check size={15} /> : <Save size={15} />}
           {saved ? 'Saved!' : 'Save Settings'}
         </button>
+
+        {/* Dev utilities */}
+        <div className="mt-8 pt-6 border-t border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-700 mb-1">Developer Tools</h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Populate the database with sample data for testing. Safe to run multiple times (uses INSERT OR IGNORE).
+          </p>
+          <div className="flex items-center gap-3">
+            <button onClick={runSeed} disabled={seeding}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-40 transition-colors">
+              <Database size={12} /> {seeding ? 'Seeding…' : 'Seed sample data'}
+            </button>
+            {seedResult && (
+              <span className="text-xs text-gray-500">
+                {seedResult.error ? `Error: ${seedResult.error}` : seedResult.message}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -995,3 +995,73 @@ ipcMain.handle('stories:getAll', () => {
   }
   return stories
 })
+
+// ─── Seed sample data (dev/testing) ──────────────────────────────────────────
+
+ipcMain.handle('seed:run', () => {
+  const db = getDb()
+
+  // Ideas
+  const insertIdea = db.prepare(`INSERT OR IGNORE INTO ideas (title, summary, raw_text, tags, source, created_at) VALUES (?, ?, ?, ?, 'seed', ?)`)
+  const ideas = [
+    ['Build a daily writing habit tracker', 'A lightweight tool that lets you log daily writing sessions, track word counts, and visualise streaks over time. Integrates with an LLM to suggest prompts when stuck.', JSON.stringify(['writing', 'habits', 'tool-idea']), '2026-03-10 09:00:00'],
+    ['Research note-taking with graph view', 'An extension to Think that renders all concluded nodes across sessions as a knowledge graph. Nodes cluster by topic similarity; clicking navigates to the source session.', JSON.stringify(['think', 'research', 'graph', 'tool-idea']), '2026-03-12 14:30:00'],
+    ['Automated weekly review digest', "A workflow that runs every Sunday at 7pm, pulls the past week's Grove sessions and Think conclusions, and sends a structured email summary to yourself.", JSON.stringify(['automation', 'grove', 'think', 'workflow']), '2026-03-13 11:15:00'],
+    ['Village reaction emoji bar', 'Add emoji reactions (👍❤️🔥💡) to village feed items so followers can react without leaving a full comment. Stored in village_interactions with type = "reaction".', JSON.stringify(['village', 'ui', 'feature']), '2026-03-14 16:45:00'],
+    ['Pomodoro timer integrated with Grove sessions', 'A floating Pomodoro timer that auto-creates a Grove session when a focus block starts and auto-ends it when the block finishes. Duration and breaks configurable in Settings.', JSON.stringify(['grove', 'focus', 'tool-idea']), '2026-03-15 08:00:00'],
+  ]
+  for (const [title, summary, tags, created_at] of ideas) insertIdea.run(title, summary, summary, tags, created_at)
+
+  // Tags
+  const insertTag = db.prepare(`INSERT OR IGNORE INTO village_tags (id, name, icon, color) VALUES (?, ?, ?, ?)`)
+  const insertTagDef = db.prepare(`INSERT OR IGNORE INTO village_tag_defaults (tag_id, tool_id, level) VALUES (?, ?, ?)`)
+  insertTag.run('tag-family', 'Family', '🏠', '#10b981')
+  insertTag.run('tag-friends', 'Friends', '🫂', '#6366f1')
+  insertTag.run('tag-mentor', 'Mentor', '🎓', '#f59e0b')
+  for (const tool of ['grove', 'think']) {
+    insertTagDef.run('tag-family', tool, 'reader')
+    insertTagDef.run('tag-friends', tool, 'follower')
+    insertTagDef.run('tag-mentor', tool, 'collaborator')
+  }
+
+  // Members
+  const insertMember = db.prepare(`INSERT OR IGNORE INTO village_members (id, name, email, avatar_emoji, tag_id, joined_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
+  const insertAccess = db.prepare(`INSERT OR IGNORE INTO village_access (member_id, tool_id, level) VALUES (?, ?, ?)`)
+  const insertNotif  = db.prepare(`INSERT OR IGNORE INTO village_notifications (member_id, frequency) VALUES (?, ?)`)
+  const members = [
+    ['member-alice', 'Alice Chen',       'alice@example.com',  '🌸', 'tag-family',  'daily'],
+    ['member-bob',   'Bob Ramirez',      'bob@example.com',    '🎸', 'tag-friends', 'weekly'],
+    ['member-priya', 'Priya Sharma',     'priya@example.com',  '📚', 'tag-mentor',  'daily'],
+    ['member-test',  '🧪 Village Tester', 'test@example.com',  '🧪', null,          'never'],
+  ]
+  for (const [id, name, email, emoji, tag, freq] of members) {
+    insertMember.run(id, name, email, emoji, tag)
+    insertNotif.run(id, freq)
+  }
+  insertAccess.run('member-test',  'grove', 'reader')
+  insertAccess.run('member-alice', 'grove', 'commenter')
+  insertAccess.run('member-priya', 'grove', 'collaborator')
+  insertAccess.run('member-priya', 'think', 'collaborator')
+
+  // Activity
+  const insertAct = db.prepare(`INSERT OR IGNORE INTO village_activity (id, source_tool, activity_type, payload, created_at) VALUES (?, ?, ?, ?, ?)`)
+  insertAct.run('act-grove-1', 'grove', 'session_logged', JSON.stringify({ owner: 'Ram', course: 'Machine Learning Fundamentals', duration: 45, notes: 'Covered backpropagation and gradient descent. The chain rule finally clicked.' }), '2026-03-14 19:30:00')
+  insertAct.run('act-grove-2', 'grove', 'session_logged', JSON.stringify({ owner: 'Ram', course: 'TypeScript Advanced Patterns', duration: 60, notes: 'Deep dived into conditional types and the infer keyword.' }), '2026-03-15 10:00:00')
+  insertAct.run('act-grove-3', 'grove', 'session_logged', JSON.stringify({ owner: 'Ram', course: 'Machine Learning Fundamentals', duration: 30, notes: '' }), '2026-03-16 08:45:00')
+  insertAct.run('act-think-1', 'think', 'research_started', JSON.stringify({ owner: 'Ram', topic: 'Retrieval-Augmented Generation', session_title: 'RAG Architecture Deep Dive', node_count: 1, goal: '' }), '2026-03-13 14:00:00')
+  insertAct.run('act-think-2', 'think', 'node_concluded', JSON.stringify({ owner: 'Ram', topic: 'Vector databases comparison', session_title: 'RAG Architecture Deep Dive', takeaway: 'Pinecone is easiest to start with, but pgvector is sufficient for < 1M vectors.' }), '2026-03-13 15:30:00')
+
+  // Interactions
+  const insertInt = db.prepare(`INSERT OR IGNORE INTO village_interactions (id, activity_id, member_id, member_name, type, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+  insertInt.run('int-1', 'act-grove-1', 'member-alice', 'Alice Chen',   'comment', JSON.stringify({ body: "Backprop finally clicking is such a great feeling! Do you use 3Blue1Brown's videos?" }), '2026-03-14 20:15:00')
+  insertInt.run('int-2', 'act-grove-2', 'member-priya', 'Priya Sharma', 'comment', JSON.stringify({ body: 'The `infer` keyword was a game-changer for me too. Try applying it to discriminated unions next!' }), '2026-03-15 11:00:00')
+  insertInt.run('int-3', 'act-think-2', 'member-priya', 'Priya Sharma', 'comment', JSON.stringify({ body: 'Good conclusion. Also worth checking out Weaviate for built-in BM25 hybrid search.' }), '2026-03-13 16:00:00')
+
+  // Workflows
+  const insertWf = db.prepare(`INSERT OR IGNORE INTO workflows (name, trigger_tool, trigger_event, action_type, action_payload, enabled, created_at) SELECT ?, ?, ?, ?, ?, ?, datetime('now') WHERE NOT EXISTS (SELECT 1 FROM workflows WHERE name=?)`)
+  insertWf.run('Auto-sync village on Grove session', 'grove', 'session_logged', 'sync_village', '{}', 1, 'Auto-sync village on Grove session')
+  insertWf.run('Log Think conclusions to console', 'think', 'node_concluded', 'log_to_console', '{}', 1, 'Log Think conclusions to console')
+  insertWf.run('Weekly digest on Grove session (disabled)', 'grove', 'session_logged', 'send_email_digest', '{}', 0, 'Weekly digest on Grove session (disabled)')
+
+  return { ok: true, message: 'Sample data seeded successfully' }
+})

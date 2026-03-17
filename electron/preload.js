@@ -71,4 +71,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // User stories
   getStories:       ()                   => invoke('stories:getAll'),
+
+  // Dev utilities
+  runSeed:          ()                   => invoke('seed:run'),
 })
