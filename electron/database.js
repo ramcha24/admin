@@ -168,6 +168,17 @@ function createSchema() {
   setDefault.run('smtp_pass', '')
   setDefault.run('smtp_from', '')
 
+  // Capability registry (populated from tool.json services blocks at startup)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS capabilities (
+      service_id    TEXT PRIMARY KEY,
+      tool_id       TEXT NOT NULL,
+      description   TEXT NOT NULL DEFAULT '',
+      input_schema  TEXT NOT NULL DEFAULT '{}',
+      output_schema TEXT NOT NULL DEFAULT '{}'
+    );
+  `)
+
   // Issues tracker
   db.exec(`
     CREATE TABLE IF NOT EXISTS issues (

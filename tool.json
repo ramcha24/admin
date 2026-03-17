@@ -12,5 +12,24 @@
   },
   "capabilities": ["tool-management", "tool-discovery", "tool-scaffolding"],
   "emits": [],
-  "listens": []
+  "listens": [],
+  "service_port": 7702,
+  "services": [
+    {
+      "id": "admin:tools:list",
+      "description": "List all registered tools with their current status.",
+      "input": {},
+      "output": {
+        "tools": "array of { id, name, icon, description, dev_phase, status }"
+      }
+    },
+    {
+      "id": "admin:capabilities:list",
+      "description": "List all callable services across all registered tools.",
+      "input": {},
+      "output": {
+        "capabilities": "array of { service_id, tool_id, description, input_schema }"
+      }
+    }
+  ]
 }

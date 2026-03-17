@@ -1,0 +1,249 @@
+import React, { useEffect, useState, useCallback } from 'react'
+import { RefreshCw, Copy, Check, ChevronDown, ChevronRight, Zap } from 'lucide-react'
+
+function SchemaTable({ schema }) {
+  const entries = Object.entries(schema)
+  if (!entries.length) return <span className="text-xs text-gray-400 italic">no parameters</span>
+  return (
+    <table className="w-full text-xs border-collapse">
+      <thead>
+        <tr className="text-left text-gray-400">
+          <th className="pr-3 pb-1 font-medium">Field</th>
+          <th className="pr-3 pb-1 font-medium">Type</th>
+          <th className="pr-3 pb-1 font-medium">Required</th>
+          <th className="pb-1 font-medium">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map(([field, spec]) => {
+          const s = typeof spec === 'string' ? { type: spec } : spec
+          return (
+            <tr key={field} className="border-t border-gray-50">
+              <td className="pr-3 py-1 font-mono text-gray-900">{field}</td>
+              <td className="pr-3 py-1 text-violet-600 font-mono">{s.type ?? '?'}</td>
+              <td className="pr-3 py-1">{s.required === false ? <span className="text-gray-300">optional</span> : <span className="text-amber-500">required</span>}</td>
+              <td className="py-1 text-gray-500">{s.description ?? ''}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+  return (
+    <button onClick={copy} className="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+      {copied ? <><Check size={11} className="text-emerald-500" /> Copied</> : <><Copy size={11} /> Copy</>}
+    </button>
+  )
+}
+
+function buildSnippet(cap) {
+  const examplePayload = {}
+  for (const [field, spec] of Object.entries(cap.input_schema)) {
+    const s = typeof spec === 'string' ? { type: spec } : spec
+    if (s.required === false) continue
+    if (s.type === 'number') examplePayload[field] = 0
+    else if (s.type === 'boolean') examplePayload[field] = true
+    else examplePayload[field] = `"..."`
+  }
+
+  const payloadStr = Object.entries(examplePayload)
+    .map(([k, v]) => `  ${k}: ${v}`)
+    .join(',\n')
+
+  return `// From any tool — calls Admin gateway which validates & routes
+const result = await fetch('${cap.gateway_url}', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+${payloadStr}
+  }),
+}).then(r => r.json())
+
+// From within Admin (via Electron IPC):
+const result = await window.api.callCapability('${cap.service_id}', {
+${payloadStr}
+})`
+}
+
+function CapabilityCard({ cap }) {
+  const [open, setOpen] = useState(false)
+  const snippet = buildSnippet(cap)
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-start gap-3 px-4 py-4 text-left hover:bg-gray-50 transition-colors"
+      >
+        <span className="text-lg shrink-0">{cap.tool_icon}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-sm font-semibold text-gray-900">{cap.service_id}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+              {cap.tool_name}
+            </span>
+          </div>
+          <p className="text-sm text-gray-500 mt-0.5 leading-snug">{cap.description}</p>
+        </div>
+        <span className="text-gray-300 shrink-0 mt-1">
+          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 border-t border-gray-50 space-y-4">
+          {/* Input schema */}
+          <div>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2 mt-3">Input</p>
+            <SchemaTable schema={cap.input_schema} />
+          </div>
+
+          {/* Output */}
+          <div>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Output</p>
+            <pre className="text-xs text-gray-500 font-mono whitespace-pre-wrap">
+              {typeof cap.output_schema === 'string'
+                ? cap.output_schema
+                : JSON.stringify(cap.output_schema, null, 2)}
+            </pre>
+          </div>
+
+          {/* Gateway URL */}
+          <div>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Gateway URL</p>
+            <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+              <code className="text-xs text-indigo-600 flex-1 font-mono break-all">{cap.gateway_url}</code>
+              <CopyButton text={cap.gateway_url} />
+            </div>
+          </div>
+
+          {/* Invocation snippet */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">How to call</p>
+              <CopyButton text={snippet} />
+            </div>
+            <pre className="text-xs text-gray-700 font-mono bg-gray-50 rounded-lg px-3 py-3 overflow-x-auto whitespace-pre">
+              {snippet}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function CapabilitiesPage() {
+  const [caps,    setCaps]    = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter,  setFilter]  = useState('all')
+  const [tools,   setTools]   = useState([])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [all, discovered] = await Promise.all([
+        window.api.getCapabilities(),
+        window.api.discoverTools(),
+      ])
+      setCaps(all)
+      setTools(discovered)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const filtered = filter === 'all' ? caps : caps.filter(c => c.tool_id === filter)
+
+  // Group by tool
+  const grouped = filtered.reduce((acc, c) => {
+    if (!acc[c.tool_id]) acc[c.tool_id] = []
+    acc[c.tool_id].push(c)
+    return acc
+  }, {})
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Service Contracts</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {caps.length} callable service{caps.length !== 1 ? 's' : ''} across {tools.filter(t => t.services?.length).length} tools ·
+            {' '}<span className="font-mono text-xs text-indigo-600">gateway: http://localhost:7702</span>
+          </p>
+        </div>
+        <button onClick={load} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Refresh">
+          <RefreshCw size={16} />
+        </button>
+      </div>
+
+      {/* How it works banner */}
+      <div className="flex items-start gap-3 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-5">
+        <Zap size={15} className="text-indigo-500 mt-0.5 shrink-0" />
+        <div className="text-sm text-indigo-700 space-y-0.5">
+          <p className="font-medium">Any tool can call any service — Admin validates and routes.</p>
+          <p className="text-indigo-500 text-xs">
+            POST to the gateway URL with a JSON payload. Admin checks the input schema, then proxies to the target tool's service server. If the tool isn't running, you get a 503.
+          </p>
+        </div>
+      </div>
+
+      {/* Tool filter */}
+      <div className="flex gap-1.5 mb-5 flex-wrap">
+        <button onClick={() => setFilter('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filter === 'all' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+          All tools
+        </button>
+        {tools.filter(t => t.services?.length).map(t => (
+          <button key={t.id} onClick={() => setFilter(t.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filter === t.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+            {t.icon} {t.name}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-gray-400">
+          <RefreshCw size={18} className="animate-spin mr-2" /> Loading…
+        </div>
+      ) : caps.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <p className="text-4xl mb-3">🔌</p>
+          <p className="font-medium">No services registered yet</p>
+          <p className="text-sm mt-1">Add a <code className="font-mono text-xs">services</code> array to a tool's <code className="font-mono text-xs">tool.json</code> and refresh.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([toolId, services]) => {
+            const tool = tools.find(t => t.id === toolId)
+            return (
+              <div key={toolId}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base">{tool?.icon ?? '📦'}</span>
+                  <h2 className="text-sm font-semibold text-gray-700">{tool?.name ?? toolId}</h2>
+                  <span className="text-xs text-gray-400">port {tool?.service_port ?? '—'}</span>
+                </div>
+                <div className="space-y-2">
+                  {services.map(cap => <CapabilityCard key={cap.service_id} cap={cap} />)}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}

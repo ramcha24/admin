@@ -46,6 +46,7 @@ function createWindow() {
 app.whenReady().then(() => {
   initDatabase()
   startVillageServer()
+  startCapabilityGateway()
   scheduleDailyDigest(getDb())
   createWindow()
   app.on('activate', () => {
@@ -53,7 +54,7 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('before-quit', () => { stopVillageServer(); cancelDigestSchedule() })
+app.on('before-quit', () => { stopVillageServer(); stopCapabilityGateway(); cancelDigestSchedule() })
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
@@ -126,6 +127,26 @@ ipcMain.handle('tools:discover', () => {
       JSON.stringify(manifest.emits ?? []),
       JSON.stringify(manifest.listens ?? [])
     )
+
+    // Upsert service contracts from tool.json
+    if (Array.isArray(manifest.services)) {
+      const upsertCap = db.prepare(`
+        INSERT INTO capabilities (service_id, tool_id, description, input_schema, output_schema)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(service_id) DO UPDATE SET
+          tool_id=excluded.tool_id, description=excluded.description,
+          input_schema=excluded.input_schema, output_schema=excluded.output_schema
+      `)
+      // Remove stale services from this tool (renamed/removed)
+      const freshIds = manifest.services.map(s => s.id)
+      const stale = db.prepare('SELECT service_id FROM capabilities WHERE tool_id=?').all(manifest.id)
+      for (const { service_id } of stale) {
+        if (!freshIds.includes(service_id)) db.prepare('DELETE FROM capabilities WHERE service_id=?').run(service_id)
+      }
+      for (const svc of manifest.services) {
+        upsertCap.run(svc.id, manifest.id, svc.description ?? '', JSON.stringify(svc.input ?? {}), JSON.stringify(svc.output ?? {}))
+      }
+    }
 
     const row = db.prepare('SELECT * FROM tool_registry WHERE id=?').get(manifest.id)
     const autoTag = detectLatestTag(dirPath)
@@ -987,6 +1008,169 @@ async function runWorkflows(eventType, sourceTool, payload) {
     }
   }
 }
+
+// ─── Capability Gateway (port 7702) ───────────────────────────────────────────
+// Any tool can POST http://localhost:7702/capabilities/call/{serviceId} with JSON payload.
+// Admin validates against the declared schema then proxies to the target tool's service_port.
+
+const GATEWAY_PORT = 7702
+let gatewayServer = null
+
+function validatePayload(inputSchema, payload) {
+  const errors = []
+  for (const [field, spec] of Object.entries(inputSchema)) {
+    if (spec.required !== false && spec.required !== undefined && spec.required) {
+      if (payload[field] === undefined || payload[field] === null || payload[field] === '') {
+        errors.push(`"${field}" is required`)
+      }
+    }
+    if (payload[field] !== undefined && spec.type && typeof payload[field] !== spec.type) {
+      errors.push(`"${field}" must be ${spec.type}, got ${typeof payload[field]}`)
+    }
+  }
+  return errors
+}
+
+function proxyToTool(servicePort, serviceId, payload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload)
+    const opts = {
+      hostname: '127.0.0.1',
+      port: servicePort,
+      path: `/capabilities/${serviceId}`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+    }
+    const req = http.request(opts, res => {
+      let data = ''
+      res.on('data', chunk => { data += chunk })
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }) }
+        catch { resolve({ status: res.statusCode, body: { raw: data } }) }
+      })
+    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+}
+
+function startCapabilityGateway() {
+  const db = getDb()
+  gatewayServer = http.createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+
+    const match = req.url.match(/^\/capabilities\/call\/(.+)$/)
+    if (!match || req.method !== 'POST') {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Not found. Use POST /capabilities/call/{serviceId}' }))
+      return
+    }
+    const serviceId = decodeURIComponent(match[1])
+
+    let body = ''
+    req.on('data', chunk => { body += chunk })
+    req.on('end', async () => {
+      let payload = {}
+      try { if (body) payload = JSON.parse(body) } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Invalid JSON body' })); return
+      }
+
+      // Look up the service
+      const svc = db.prepare('SELECT * FROM capabilities WHERE service_id=?').get(serviceId)
+      if (!svc) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: `Unknown service: ${serviceId}` })); return
+      }
+
+      // Validate payload
+      const inputSchema = JSON.parse(svc.input_schema ?? '{}')
+      const errors = validatePayload(inputSchema, payload)
+      if (errors.length) {
+        res.writeHead(422, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Validation failed', details: errors })); return
+      }
+
+      // Look up target tool's service_port from its tool.json
+      const tool = db.prepare('SELECT dir_path FROM tool_registry WHERE id=?').get(svc.tool_id)
+      if (!tool) {
+        res.writeHead(503, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: `Tool "${svc.tool_id}" not registered` })); return
+      }
+      let servicePort
+      try {
+        const manifest = JSON.parse(fs.readFileSync(path.join(tool.dir_path, 'tool.json'), 'utf8'))
+        servicePort = manifest.service_port
+      } catch {
+        res.writeHead(503, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: `Cannot read tool.json for "${svc.tool_id}"` })); return
+      }
+      if (!servicePort) {
+        res.writeHead(503, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: `Tool "${svc.tool_id}" has no service_port declared` })); return
+      }
+
+      // Proxy to tool
+      try {
+        const result = await proxyToTool(servicePort, serviceId, payload)
+        res.writeHead(result.status, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(result.body))
+      } catch (e) {
+        res.writeHead(503, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: `Tool "${svc.tool_id}" is not running or its service server is down`, detail: e.message }))
+      }
+    })
+  })
+  gatewayServer.listen(GATEWAY_PORT, '127.0.0.1', () => {
+    console.log(`[CapabilityGateway] Listening on http://127.0.0.1:${GATEWAY_PORT}`)
+  })
+  gatewayServer.on('error', e => {
+    if (e.code !== 'EADDRINUSE') console.error('[CapabilityGateway] Error:', e.message)
+  })
+}
+
+function stopCapabilityGateway() {
+  gatewayServer?.close()
+}
+
+ipcMain.handle('capabilities:getAll', () => {
+  const db = getDb()
+  const caps = db.prepare('SELECT c.*, t.name as tool_name, t.icon as tool_icon, t.color as tool_color FROM capabilities c JOIN tool_registry t ON c.tool_id = t.id ORDER BY c.tool_id, c.service_id').all()
+  return caps.map(c => ({
+    ...c,
+    input_schema:  JSON.parse(c.input_schema  ?? '{}'),
+    output_schema: JSON.parse(c.output_schema ?? '{}'),
+    gateway_url: `http://localhost:${GATEWAY_PORT}/capabilities/call/${encodeURIComponent(c.service_id)}`,
+  }))
+})
+
+ipcMain.handle('capabilities:call', async (_, serviceId, payload) => {
+  const db = getDb()
+  const svc = db.prepare('SELECT * FROM capabilities WHERE service_id=?').get(serviceId)
+  if (!svc) return { error: `Unknown service: ${serviceId}` }
+
+  const inputSchema = JSON.parse(svc.input_schema ?? '{}')
+  const errors = validatePayload(inputSchema, payload)
+  if (errors.length) return { error: 'Validation failed', details: errors }
+
+  const tool = db.prepare('SELECT dir_path FROM tool_registry WHERE id=?').get(svc.tool_id)
+  let servicePort
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(tool.dir_path, 'tool.json'), 'utf8'))
+    servicePort = manifest.service_port
+  } catch { return { error: 'Cannot read tool manifest' } }
+
+  try {
+    const result = await proxyToTool(servicePort, serviceId, payload)
+    return result.body
+  } catch (e) {
+    return { error: `Tool not reachable: ${e.message}` }
+  }
+})
 
 // ─── Issues ───────────────────────────────────────────────────────────────────
 

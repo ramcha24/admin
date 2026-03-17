@@ -1,15 +1,16 @@
 import React from 'react'
-import { LayoutGrid, Lightbulb, Plus, GitBranch, Settings, Users, BookOpen, CircleDot } from 'lucide-react'
+import { LayoutGrid, Lightbulb, Plus, GitBranch, Settings, Users, BookOpen, CircleDot, Plug } from 'lucide-react'
 
 const NAV = [
-  { id: 'tools',     label: 'Tools',     icon: LayoutGrid },
-  { id: 'ideas',     label: 'Ideas',     icon: Lightbulb },
-  { id: 'issues',    label: 'Issues',    icon: CircleDot },
-  { id: 'village',   label: 'Village',   icon: Users },
-  { id: 'new',       label: 'New Tool',  icon: Plus },
-  { id: 'workflows', label: 'Workflows', icon: GitBranch },
-  { id: 'stories',   label: 'Stories',   icon: BookOpen },
-  { id: 'settings',  label: 'Settings',  icon: Settings },
+  { id: 'tools',        label: 'Tools',     icon: LayoutGrid },
+  { id: 'ideas',        label: 'Ideas',     icon: Lightbulb },
+  { id: 'issues',       label: 'Issues',    icon: CircleDot },
+  { id: 'capabilities', label: 'Services',  icon: Plug },
+  { id: 'village',      label: 'Village',   icon: Users },
+  { id: 'new',          label: 'New Tool',  icon: Plus },
+  { id: 'workflows',    label: 'Workflows', icon: GitBranch },
+  { id: 'stories',      label: 'Stories',   icon: BookOpen },
+  { id: 'settings',     label: 'Settings',  icon: Settings },
 ]
 
 export default function Sidebar({ page, setPage, villageUnread = 0, issueCount = 0 }) {

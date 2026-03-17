@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import ToolGrid from './components/ToolGrid'
 import IdeasPage from './components/IdeasPage'
 import IssuesPage from './components/IssuesPage'
+import CapabilitiesPage from './components/CapabilitiesPage'
 import NewFlow from './components/NewFlow'
 import SettingsPage from './components/SettingsPage'
 import VillagePage from './components/VillagePage'
@@ -48,6 +49,7 @@ export default function App() {
         )}
         {page === 'ideas' && <IdeasPage />}
         {page === 'issues' && <IssuesPage onCountChange={setIssueCount} />}
+        {page === 'capabilities' && <CapabilitiesPage />}
         {page === 'new' && (
           <NewFlow
             defaultMode={newMode ?? 'plan'}

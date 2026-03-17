@@ -71,6 +71,10 @@ contextBridge.exposeInMainWorld('api', {
   // Shell
   openExternal:     (url)                => invoke('shell:openExternal', url),
 
+  // Capabilities
+  getCapabilities:  ()                   => invoke('capabilities:getAll'),
+  callCapability:   (serviceId, payload) => invoke('capabilities:call', serviceId, payload),
+
   // Issues
   getIssues:        (toolId)             => invoke('issues:getAll', toolId),
   saveIssue:        (data)               => invoke('issues:save', data),
