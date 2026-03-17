@@ -12,7 +12,19 @@ const { syncToSupabase } = require('./supabase')
 const { scheduleDailyDigest, cancelDigestSchedule, runDailyDigest } = require('./digest')
 
 const isDev = process.argv.includes('--dev')
-const ADMIN_PARENT = path.resolve(__dirname, '../../')  // /Users/ramcha1994/Admin
+
+// In dev mode __dirname is the real source path; in a packaged .app it's
+// inside the bundle. Read the baked-in path written by release.sh instead.
+function resolveAdminParent() {
+  if (isDev) return path.resolve(__dirname, '../../')
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'admin-parent.json'), 'utf8'))
+    return cfg.adminParent
+  } catch {
+    return path.join(os.homedir(), 'Admin')  // reasonable fallback
+  }
+}
+const ADMIN_PARENT = resolveAdminParent()
 
 if (isDev) app.setName('Admin-dev')
 

@@ -13,8 +13,17 @@ const path  = require('path')
 const os    = require('os')
 
 const VILLAGE_PORT  = 7700
-const ADMIN_PARENT  = path.resolve(__dirname, '../../')
 const WEB_APP_PATH  = path.join(__dirname, '../village-web/index.html')
+
+function resolveAdminParent() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'admin-parent.json'), 'utf8'))
+    return cfg.adminParent
+  } catch {
+    return path.resolve(__dirname, '../../')
+  }
+}
+const ADMIN_PARENT = resolveAdminParent()
 
 let server = null
 
