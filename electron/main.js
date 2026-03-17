@@ -864,18 +864,27 @@ ipcMain.handle('village:getMembers', () => {
 })
 
 ipcMain.handle('village:addMember', (_, { name, email, avatarEmoji, tagId }) => {
-  const id = `member-${Date.now()}`
+  const { randomBytes } = require('crypto')
+  const id    = `member-${Date.now()}`
+  const token = randomBytes(16).toString('hex')
   getDb().prepare(`
-    INSERT INTO village_members (id, name, email, avatar_emoji, tag_id)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, name, email, avatarEmoji ?? '👤', tagId ?? null)
-  return { ok: true, id, url: `http://localhost:${VILLAGE_PORT}/?member=${id}` }
+    INSERT INTO village_members (id, name, email, avatar_emoji, tag_id, feed_token)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, name, email, avatarEmoji ?? '👤', tagId ?? null, token)
+  return { ok: true, id, token, url: `http://localhost:${VILLAGE_PORT}/?token=${token}` }
 })
 
 ipcMain.handle('village:updateMember', (_, { id, email, tagId }) => {
   const db = getDb()
   db.prepare('UPDATE village_members SET email=?, tag_id=? WHERE id=?').run(email, tagId ?? null, id)
   return { ok: true }
+})
+
+ipcMain.handle('village:regenerateMemberToken', (_, memberId) => {
+  const { randomBytes } = require('crypto')
+  const token = randomBytes(16).toString('hex')
+  getDb().prepare("UPDATE village_members SET feed_token=? WHERE id=?").run(token, memberId)
+  return { ok: true, token, url: `http://localhost:${VILLAGE_PORT}/?token=${token}` }
 })
 
 ipcMain.handle('village:getMemberAccess', (_, memberId) => {

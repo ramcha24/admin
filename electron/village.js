@@ -482,9 +482,27 @@ function startVillageServer() {
       syncGroveActivity()
       syncThinkActivity()
       syncTantuActivity()
-      const memberId = u.searchParams.get('member') ?? 'test-villager'
+      const { getDb } = require('./database')
+      const db = getDb()
+
+      // Resolve member by token (preferred) or legacy member ID
+      const token    = u.searchParams.get('token')
+      const memberParam = u.searchParams.get('member')
+      let memberId
+      if (token) {
+        const row = db.prepare("SELECT id FROM village_members WHERE feed_token=?").get(token)
+        if (!row) return json(res, { error: 'Invalid token' }, 404)
+        memberId = row.id
+      } else {
+        memberId = memberParam ?? 'test-villager'
+      }
+
       const data = getMemberFeed(memberId)
       if (!data) return json(res, { error: 'Member not found' }, 404)
+
+      // Record last seen
+      db.prepare("UPDATE village_members SET last_seen_at=datetime('now') WHERE id=?").run(memberId)
+
       return json(res, data)
     }
 

@@ -208,7 +208,10 @@
     const IS_SUPABASE = !_SUPA_URL.startsWith('__') && !_SUPA_KEY.startsWith('__')
 
     // ── Helpers ──────────────────────────────────────────────────────────────
-    const memberId = new URLSearchParams(location.search).get('member') ?? 'test-villager'
+    // Support both ?token=<hex> (preferred, secure) and legacy ?member=<id>
+    const _params  = new URLSearchParams(location.search)
+    const _token   = _params.get('token')
+    const memberId = _params.get('member') ?? 'test-villager'
     const API = ''  // same origin (local mode only)
 
     // Member's chosen display name (stored in localStorage per feed URL)
@@ -453,12 +456,14 @@
 
     // ── Boot ─────────────────────────────────────────────────────────────────
     async function loadLocal() {
-      const res = await fetch(`${API}/api/feed?member=${memberId}`)
-      if (!res.ok) throw new Error(res.status === 404 ? 'Member not found' : 'Server error')
+      const param = _token ? `token=${encodeURIComponent(_token)}` : `member=${encodeURIComponent(memberId)}`
+      const res = await fetch(`${API}/api/feed?${param}`)
+      if (!res.ok) throw new Error(res.status === 404 ? 'Member not found or invalid link' : 'Server error')
       return res.json()
     }
 
     async function loadSupabase() {
+      // In Supabase mode, token isn't used — feeds are pre-computed per member_id
       const res = await fetch(
         `${_SUPA_URL}/rest/v1/village_feeds?member_id=eq.${encodeURIComponent(memberId)}&limit=1&select=feed_json`,
         {

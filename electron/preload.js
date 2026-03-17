@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('api', {
   getVillageMembers:     ()       => invoke('village:getMembers'),
   addVillageMember:      (data)   => invoke('village:addMember', data),
   updateVillageMember:          (data)   => invoke('village:updateMember', data),
+  regenerateVillageMemberToken: (id)     => invoke('village:regenerateMemberToken', id),
   getVillageMemberAccess:       (id)     => invoke('village:getMemberAccess', id),
   setVillageNotificationFreq:   (data)   => invoke('village:setNotificationFrequency', data),
   getVillagePreviewFeed:        (id)     => invoke('village:getPreviewFeed', id),

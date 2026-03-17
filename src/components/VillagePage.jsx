@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Users, Copy, RefreshCw, ExternalLink, Check, Plus, Inbox, Tag, Send, X, Pencil, Trash2, Eye, Radio, ChevronDown, ChevronRight, User } from 'lucide-react'
+import { Users, Copy, RefreshCw, ExternalLink, Check, Plus, Inbox, Tag, Send, X, Pencil, Trash2, Eye, Radio, ChevronDown, ChevronRight, User, Mail, RefreshCcw } from 'lucide-react'
 
 const LEVELS = ['follower', 'reader', 'commenter', 'collaborator']
 const TOOLS  = ['grove', 'think']
@@ -917,49 +917,71 @@ export default function VillagePage() {
             </div>
           ) : (
             members.map(m => {
-              const memberUrl = `http://localhost:7700/?member=${m.id}`
+              const memberUrl = m.feed_token
+                ? `http://localhost:7700/?token=${m.feed_token}`
+                : `http://localhost:7700/?member=${m.id}`
               const isTest    = m.id === 'test-villager'
               const memberTag = tags.find(t => t.id === m.tag_id)
+              const lastSeen  = m.last_seen_at ? timeAgo(m.last_seen_at) : null
+              const inviteSubject = encodeURIComponent("You're invited to my village feed")
+              const inviteBody    = encodeURIComponent(
+                `Hey ${m.name},\n\nI've been tracking my learning and work in a personal dashboard and wanted to share your personalized feed with you.\n\nYour link: ${memberUrl}\n\nYou can see my recent activity and leave comments there. Hope you enjoy it!\n\nCheers`
+              )
               return (
-                <div key={m.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center text-lg flex-shrink-0">
-                    {m.avatar_emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm text-gray-900">{m.name}</span>
-                      {isTest && (
-                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">test</span>
-                      )}
-                      {memberTag && (
-                        <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-medium">
-                          {memberTag.emoji} {memberTag.name}
-                        </span>
-                      )}
+                <div key={m.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center text-lg flex-shrink-0">
+                      {m.avatar_emoji}
                     </div>
-                    <p className="text-xs text-gray-400 truncate">{m.email || 'No email'}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={() => copy(memberUrl, m.id)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
-                      title="Copy feed URL">
-                      {copied === m.id ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
-                    </button>
-                    <button onClick={() => setPreviewMember(m)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
-                      title="Preview feed">
-                      <Eye size={13} />
-                    </button>
-                    <button onClick={() => window.api.openExternal(memberUrl)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
-                      title="Open feed in browser">
-                      <ExternalLink size={13} />
-                    </button>
-                    <button onClick={() => setEditMember(m)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
-                      title="Edit member">
-                      <Pencil size={13} />
-                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm text-gray-900">{m.name}</span>
+                        {isTest && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">test</span>
+                        )}
+                        {memberTag && (
+                          <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-medium">
+                            {memberTag.emoji} {memberTag.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <p className="text-xs text-gray-400 truncate">{m.email || 'No email'}</p>
+                        {lastSeen && (
+                          <span className="text-[10px] text-emerald-500 font-medium shrink-0">● seen {lastSeen}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => copy(memberUrl, m.id)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
+                        title="Copy secure feed link">
+                        {copied === m.id ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
+                      </button>
+                      <button onClick={() => setPreviewMember(m)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
+                        title="Preview feed">
+                        <Eye size={13} />
+                      </button>
+                      <button onClick={() => window.api.openExternal(memberUrl)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
+                        title="Open feed in browser">
+                        <ExternalLink size={13} />
+                      </button>
+                      {m.email && (
+                        <button
+                          onClick={() => window.api.openExternal(`mailto:${m.email}?subject=${inviteSubject}&body=${inviteBody}`)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-gray-50 transition-colors"
+                          title="Send invite email">
+                          <Mail size={13} />
+                        </button>
+                      )}
+                      <button onClick={() => setEditMember(m)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+                        title="Edit member">
+                        <Pencil size={13} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )

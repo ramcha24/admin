@@ -199,6 +199,17 @@ function createSchema() {
   try { db.exec("ALTER TABLE tool_registry ADD COLUMN next_steps TEXT NOT NULL DEFAULT '[]'") } catch (_) {}
   try { db.exec("ALTER TABLE tool_registry ADD COLUMN stable_tag TEXT DEFAULT NULL") } catch (_) {}
 
+  // Village member auth columns (additive migrations)
+  try { db.exec("ALTER TABLE village_members ADD COLUMN feed_token TEXT") } catch (_) {}
+  try { db.exec("ALTER TABLE village_members ADD COLUMN last_seen_at TEXT") } catch (_) {}
+  // Backfill tokens for any members that don't have one yet
+  const { randomBytes } = require('crypto')
+  const membersWithoutToken = db.prepare("SELECT id FROM village_members WHERE feed_token IS NULL").all()
+  const setToken = db.prepare("UPDATE village_members SET feed_token=? WHERE id=?")
+  for (const m of membersWithoutToken) {
+    setToken.run(randomBytes(16).toString('hex'), m.id)
+  }
+
   // Seed default village identity
   db.prepare(`
     INSERT OR IGNORE INTO village_identity (id, username, display_name, avatar_emoji)
