@@ -1,53 +1,53 @@
-# The Village — Plan
+# The Village — Plan v2
 
 ## What this is
 
-A social layer built into Admin that lets you share your tools with trusted people
-(your "village") — friends, family, collaborators. You decide, per person and per tool,
-what they can see and how they can engage. The goal is genuine connection: your village
-can follow your journey, cheer you on, ask questions, and eventually co-create alongside
-you.
+A social layer woven into your Admin suite. You share tools with your "village" — trusted
+people who can follow your journey, cheer you on, ask questions, and co-create with you.
+You control exactly who sees what and how they can engage. The data is yours: stored locally
+and synced to an encrypted cloud layer you control. Village members access everything through
+a hosted website — no app to install, works on any device, available any time.
 
 ---
 
 ## Core principles
 
-1. **You control the aperture.** Each sharing rule is: person × tool × permission level.
-   Granting access to Grove does not grant access to Think.
+1. **Locally owned, cloud synced.** Your data lives in admin.db first. An encrypted copy
+   syncs to the cloud so village members can access it even when your machine is off.
+   You can wipe the cloud at any time; your local copy is always the source of truth.
 
-2. **Tools speak a common language.** Every tool in the Admin suite implements the Village
-   Protocol — a small standard declared in `tool.json`. Admin aggregates and routes.
+2. **Each tool defines its own village semantics.** Grove decides what "Follower" means for
+   study sessions. Think decides what "Reader" means for research trees. The Village layer
+   is a standard — not a constraint.
 
-3. **Village members get a web UI, not an app to install.** Admin runs a local HTTP server
-   and exposes it via a secure tunnel (Cloudflare Tunnel — free, no port forwarding). Each
-   village member gets a personal URL with magic-link auth.
+3. **Tags for groups, overrides for individuals.** Assign a village member a tag ("Family",
+   "Study Buddy") and they inherit default tool access. Override per-person ad hoc when
+   someone needs a different view.
 
-4. **Privacy by default.** Until you explicitly share a tool with someone, nothing is
-   visible. Sharing is additive, never accidental.
+4. **Website, not an app.** Village members get a personal URL. It's a hosted React web app,
+   mobile-first, warm and minimal. They bookmark it.
 
-5. **Relational, not broadcast.** The UI is personal. Each member sees their own feed,
-   tailored to what they have access to. In the future, if they also build tools, mutual
-   context can surface.
-
----
-
-## Permission levels
-
-| Level | What they see | What they can do |
-|-------|--------------|-----------------|
-| **Follower** | That activity happened ("Ram logged a session today") | Nothing — read-only |
-| **Reader** | Full activity details ("45 min on Linear Algebra, notes: …") | React (emoji) |
-| **Commenter** | Full details | Leave comments / questions on activity |
-| **Collaborator** | Full details + tool-specific views | Tool-specific actions (defined per tool) |
-
-A person can have different levels across different tools.
-Example: Alice is a Collaborator on Grove, Follower on Think, no access to Admin.
+5. **Privacy by default.** Nothing is visible until you explicitly share it.
 
 ---
 
-## Village Protocol standard
+## Permission levels (applies to every tool)
 
-Each tool declares participation in `tool.json`:
+Each tool defines what each level *means for that tool* in its `tool.json`. The levels are
+fixed (so village members understand them); the content of each level is tool-specific.
+
+| Level | Intent |
+|-------|--------|
+| **Follower** | I know you're on a journey. I see the shape of it, not the details. |
+| **Reader** | I can see what you're working on and how it's going. |
+| **Commenter** | I can see everything and leave thoughts, questions, encouragement. |
+| **Collaborator** | I'm actively involved. Tool-specific access (e.g., suggest resources in Grove). |
+
+---
+
+## Village Protocol — `tool.json` extension
+
+Each tool fills this in to declare what village members see at each level:
 
 ```json
 {
@@ -56,14 +56,22 @@ Each tool declares participation in `tool.json`:
       {
         "id": "session_logged",
         "label": "Logged a study session",
-        "detail_fields": ["course_title", "duration_minutes", "notes"],
-        "min_level_to_see_detail": "reader"
+        "levels": {
+          "follower":     "Ram studied today",
+          "reader":       "Ram studied {course_title} for {duration_minutes} min",
+          "commenter":    "Ram studied {course_title} for {duration_minutes} min. Notes: {notes}",
+          "collaborator": "Ram studied {course_title} for {duration_minutes} min. Notes: {notes}"
+        }
       },
       {
         "id": "skill_completed",
         "label": "Completed a skill",
-        "detail_fields": ["course_title"],
-        "min_level_to_see_detail": "follower"
+        "levels": {
+          "follower":     "Ram completed a skill 🎉",
+          "reader":       "Ram completed: {course_title} 🎉",
+          "commenter":    "Ram completed: {course_title} 🎉",
+          "collaborator": "Ram completed: {course_title} 🎉"
+        }
       }
     ],
     "interaction_types": [
@@ -71,85 +79,121 @@ Each tool declares participation in `tool.json`:
         "id": "suggest_resource",
         "label": "Suggest a resource",
         "min_level": "collaborator",
-        "handler": "village:receiveInteraction"
+        "description": "Share a link or note relevant to this session"
       }
     ]
   }
 }
 ```
 
-- `activity_types` — what this tool emits to the village feed
-- `detail_fields` — which fields appear at Reader level vs. Follower (summary only)
-- `interaction_types` — what village members can do back, and the minimum level required
+The `levels` object is a template string — `{field_name}` tokens are replaced at render
+time. If a field shouldn't appear at a level, omit it from that level's template.
 
 ---
 
-## Data model (admin.db additions)
+## Village Tags
+
+Tags let you define default access for a group of people. Assigning a tag to a member
+instantly grants them the tag's default tool access. You can then override per-person.
+
+**Example tags:**
+
+| Tag | Grove | Think | Admin |
+|-----|-------|-------|-------|
+| Family | Reader | Follower | — |
+| Study Buddy | Collaborator | Reader | — |
+| Close Friend | Reader | Reader | Follower |
+| Accountability Partner | Commenter | — | — |
+
+**Workflow:**
+- "Add Alice → tag: Study Buddy" → Alice gets Grove:Collaborator + Think:Reader automatically
+- "Add Bob → tag: Family, but override Think to none" → Bob gets Grove:Reader, no Think access
+- Ad hoc: add someone with no tag, set access manually
+
+Tags are descriptive of the *relationship*, not the permissions — the tag carries the
+defaults; the person carries the actual access (which may differ from defaults).
+
+---
+
+## Data model additions (admin.db)
 
 ```sql
--- Village members
+-- Village tags
+CREATE TABLE village_tags (
+  id    TEXT PRIMARY KEY,          -- "family", "study-buddy" etc.
+  name  TEXT NOT NULL,
+  icon  TEXT DEFAULT '🏷️',
+  color TEXT DEFAULT '#6366f1',
+  description TEXT DEFAULT ''
+);
+
+-- Default tool access per tag
+CREATE TABLE village_tag_defaults (
+  tag_id  TEXT NOT NULL REFERENCES village_tags(id) ON DELETE CASCADE,
+  tool_id TEXT NOT NULL,           -- tool id, or '*' for all tools
+  level   TEXT NOT NULL,
+  PRIMARY KEY (tag_id, tool_id)
+);
+
+-- Village members (updated)
 CREATE TABLE village_members (
-  id           TEXT PRIMARY KEY,          -- uuid
+  id           TEXT PRIMARY KEY,   -- uuid
   name         TEXT NOT NULL,
-  email        TEXT,
+  email        TEXT NOT NULL,      -- used for magic link delivery
   avatar_emoji TEXT DEFAULT '👤',
-  notes        TEXT DEFAULT '',           -- your notes about this person (private)
+  tag_id       TEXT REFERENCES village_tags(id),
+  notes        TEXT DEFAULT '',    -- private notes about this person
   joined_at    TEXT DEFAULT (datetime('now'))
 );
 
--- Sharing rules: person × tool × level
+-- Per-person access overrides (overrides tag defaults)
 CREATE TABLE village_access (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   member_id  TEXT NOT NULL REFERENCES village_members(id) ON DELETE CASCADE,
-  tool_id    TEXT NOT NULL,               -- matches tool_registry.id, or '*' for all
-  level      TEXT NOT NULL,               -- follower | reader | commenter | collaborator
+  tool_id    TEXT NOT NULL,
+  level      TEXT,                 -- NULL = no access (explicit override to revoke)
   granted_at TEXT DEFAULT (datetime('now')),
   UNIQUE(member_id, tool_id)
 );
 
--- Magic link tokens (stateless auth — no passwords)
-CREATE TABLE village_tokens (
-  token      TEXT PRIMARY KEY,            -- cryptographically random 32-byte hex
-  member_id  TEXT NOT NULL REFERENCES village_members(id) ON DELETE CASCADE,
-  expires_at TEXT NOT NULL,
-  last_used  TEXT,
-  device_hint TEXT DEFAULT ''             -- "iPhone 15", "Ram's MacBook" etc.
-);
+-- Resolved access view (tag defaults + overrides merged at query time)
+-- Computed in application layer, not a DB view
 
--- Activity feed (sourced from events table, enriched)
+-- Activity feed (written locally, synced to cloud)
 CREATE TABLE village_activity (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  source_tool  TEXT NOT NULL,
+  id            TEXT PRIMARY KEY,  -- uuid (stable across sync)
+  source_tool   TEXT NOT NULL,
   activity_type TEXT NOT NULL,
-  payload      TEXT NOT NULL DEFAULT '{}',  -- JSON: full detail fields
-  summary      TEXT NOT NULL DEFAULT '',    -- 1-line summary for Follower level
-  created_at   TEXT DEFAULT (datetime('now'))
+  payload       TEXT NOT NULL DEFAULT '{}',  -- full JSON, all fields
+  created_at    TEXT DEFAULT (datetime('now')),
+  synced_at     TEXT                          -- null = pending sync
 );
 
 -- Comments from village members
 CREATE TABLE village_comments (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  activity_id INTEGER NOT NULL REFERENCES village_activity(id) ON DELETE CASCADE,
-  member_id   TEXT NOT NULL REFERENCES village_members(id) ON DELETE CASCADE,
+  id          TEXT PRIMARY KEY,    -- uuid
+  activity_id TEXT NOT NULL REFERENCES village_activity(id) ON DELETE CASCADE,
+  member_id   TEXT NOT NULL,
   body        TEXT NOT NULL,
-  created_at  TEXT DEFAULT (datetime('now'))
+  created_at  TEXT DEFAULT (datetime('now')),
+  synced_at   TEXT
 );
 
--- Reactions (emoji)
+-- Reactions
 CREATE TABLE village_reactions (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  activity_id INTEGER NOT NULL REFERENCES village_activity(id) ON DELETE CASCADE,
-  member_id   TEXT NOT NULL REFERENCES village_members(id) ON DELETE CASCADE,
+  id          TEXT PRIMARY KEY,
+  activity_id TEXT NOT NULL REFERENCES village_activity(id) ON DELETE CASCADE,
+  member_id   TEXT NOT NULL,
   emoji       TEXT NOT NULL,
+  created_at  TEXT DEFAULT (datetime('now')),
   UNIQUE(activity_id, member_id)
 );
 
--- Notification preferences per member
+-- Notification preferences
 CREATE TABLE village_notifications (
-  member_id     TEXT PRIMARY KEY REFERENCES village_members(id) ON DELETE CASCADE,
-  channel       TEXT DEFAULT 'email',   -- email | none (sms/push later)
-  frequency     TEXT DEFAULT 'daily',   -- realtime | daily | weekly | never
-  email_address TEXT DEFAULT ''
+  member_id   TEXT PRIMARY KEY REFERENCES village_members(id) ON DELETE CASCADE,
+  frequency   TEXT DEFAULT 'daily',  -- daily | weekly | never
+  last_sent_at TEXT
 );
 ```
 
@@ -159,149 +203,174 @@ CREATE TABLE village_notifications (
 
 ```
 Your tools (Grove, Think, …)
-    │
-    │  emit events to admin.db event bus
+    │  emit events → admin event bus
     ▼
 Admin electron/main.js
-    │  village:processEvents() — runs on interval, reads new events,
-    │  writes to village_activity, enriches with summary
+    │  village:processEvents()
+    │  reads events → writes village_activity (local)
+    │  renders template strings per permission level
     │
-    ├─ Local HTTP server (Express, port 7700)
-    │     GET  /feed/:memberId      — activity feed filtered by access
-    │     GET  /activity/:id        — single activity detail
-    │     POST /comment             — leave a comment (auth required)
-    │     POST /react               — emoji reaction (auth required)
-    │     GET  /auth/magic/:token   — exchange magic link for session cookie
+    ├──── admin.db (local SQLite, source of truth)
     │
-    └─ Cloudflare Tunnel (cfssl) — exposes :7700 as https://{slug}.trycloudflare.com
-           Member receives: https://{slug}.trycloudflare.com/member/{memberId}?token=…
+    └──── Supabase (cloud, encrypted)
+              │
+              ├─ village_activity rows (payload encrypted before upload)
+              ├─ village_comments (written by village members, synced down)
+              ├─ village_reactions (same)
+              └─ member auth (Supabase magic links → email)
+                        │
+                        ▼
+              Village Web App (Vercel, static React)
+                  Reads from Supabase via JS client
+                  Renders feed filtered by member's access level
+                  Mobile-first
 ```
 
-### Auth flow
+### Why Supabase
 
-1. You add a member in Admin UI → Admin generates a magic link token (expires in 7 days)
-2. Admin generates a shareable URL: `https://{tunnel}/{memberId}?token={token}`
-3. You copy and send this URL to the person (however you like — iMessage, email, etc.)
-4. They open it → token is validated → a session cookie is set (30-day expiry)
-5. Re-auth: Admin regenerates a new link from the Members page and resends
+- Free tier: 500MB Postgres, 2GB storage, 50k monthly active users
+- Magic link auth built in — Supabase sends the email, manages the session
+- Row-level security: a village member's session can only read rows where they have access
+- Realtime subscriptions (Phase 2: live feed updates)
+- You own the data — can export or self-host Supabase later
 
-No passwords. No accounts. No app to install. Just a URL.
+### Encryption model
 
-### Tunnel setup
+Before any activity payload leaves your device:
 
-Uses Cloudflare Tunnel's free unauthenticated tunnels (`cloudflared tunnel --url localhost:7700`).
-The tunnel URL is stable per-session but changes on restart. Admin stores the current URL
-and displays it in the Members page so you can always see it.
+1. A symmetric key per member is generated and stored in admin.db (never leaves your machine unencrypted)
+2. The payload is encrypted with that key using AES-256-GCM
+3. The encrypted blob is pushed to Supabase
+4. The decryption key is embedded (encrypted) in the member's magic link / session JWT
+5. The web app decrypts client-side in the browser
 
-For a stable URL: upgrade to a named Cloudflare Tunnel (free with a Cloudflare account +
-custom domain). This is Phase 2.
+Supabase stores only ciphertext. If Supabase were breached, payloads are unreadable.
+
+For Phase 1: use simpler row-level security (Supabase RLS) with the member's auth session
+as the access control — full E2E client-side encryption is Phase 2.
 
 ---
 
-## Village member web UI (served by local Express)
+## Village Web App
 
-**Feed page** (`/feed`) — chronological activity feed, filtered by the member's access level.
-  - Follower: "🌿 Ram logged a study session · 2h ago"
-  - Reader: above + "45 min on Linear Algebra. Notes: reviewed eigenvalues…"
-  - Commenter: above + comment box below each activity
-  - Collaborator: above + tool-specific action buttons
+**Stack:** React 18, Vite, Tailwind CSS — deployed to Vercel (free). Separate repo:
+`ramcha24/village-web`.
 
-**Activity detail** (`/activity/:id`) — single activity expanded, with reactions + comments thread.
+**Pages:**
 
-**Profile** (`/me`) — the member sees their own name, what tools they have access to,
-notification preferences.
+**`/` (Feed)** — chronological activity feed across all tools the member has access to.
+- Each item: tool icon, activity text (rendered at their permission level), timestamp
+- Commenter+ : comment box inline
+- Reader+: emoji reactions
+- Warm, personal tone — not a dashboard
 
-Styling: minimal, warm — not a dashboard. More like a personal letter than a feed.
-Mobile-first (members will mostly open from phone).
+**`/activity/:id`** — single activity expanded with full comment thread
+
+**`/me`** — member's profile: their name, which tools they follow, notification prefs
+
+**Design language:** light, warm, minimal. Not a SaaS product. Feels like a personal letter
+or a shared journal — because that's what it is.
 
 ---
 
 ## Admin UI additions (Electron)
 
-**New sidebar item: Village** (👥)
+**New sidebar: Village** (👥)
 
-**Members page:**
-- List of village members with access summary
-- "Add member" → name + email → generates magic link
-- Per member: expand to see tool access levels → edit
-- "Resend link" → generates new token
-- Copy shareable URL button
-- See their recent activity (comments, reactions)
+**Members tab:**
+- List of village members: avatar, name, tag, active/inactive
+- "Add member" form: name, email, tag (optional), tool overrides
+- Per member: "View their access", "Resend invite", "Edit overrides", "Remove"
 
-**Sharing rules panel (per tool, in ToolCard):**
-- "Share with village" button on each tool card
-- Opens a panel: checkboxes per member × level selector
-- Quick presets: "Share with everyone (Follower)", "Close circle only (Reader)"
+**Tags tab:**
+- List of tags with default access table (tools × levels)
+- "Create tag", edit defaults, delete tag
 
-**Village activity log:**
-- See what has been shared and when
-- See all comments from village members, reply from Admin
+**Activity tab:**
+- Your own village feed (what village members see)
+- Shows comments + reactions from members
+- Reply to comments from here
 
-**Tunnel status indicator** (top of sidebar):
-- Green dot: tunnel active, URL shown
-- Button: start/stop tunnel
-- Copy URL button
+**Sync status tab:**
+- Items pending sync, last synced time
+- Manual "Sync now" button
+- Supabase connection status
 
 ---
 
-## Notification system (Phase 1: email digest)
+## Admin Settings additions
 
-Admin runs a daily/weekly cron (internal, not system cron):
-- Queries `village_activity` for new items since last digest
-- For each member with `frequency = 'daily'`, groups their visible activity
-- Sends a plain-text email via nodemailer (SMTP settings in Admin Settings)
-- Subject: "Your village update · {date}"
-
-In Phase 1: SMTP only (Gmail app password, iCloud, etc.), configured in Settings.
+Under Settings → Village:
+- Supabase project URL + anon key (configured once)
+- Email digest day/time preference
+- "My village web app URL" — the Vercel URL (displayed so you can copy)
+- Enable/disable village sync
 
 ---
 
-## How tools integrate (what a tool author does)
+## Tool integration (what a tool author does)
 
 1. Add `village.activity_types` and `village.interaction_types` to `tool.json`
-2. Call `window.api.publishEvent(toolId, 'session_logged', { course_title, duration_minutes, notes })` when the activity happens — **this is already built** (events table + IPC handler)
-3. Admin's `village:processEvents()` reads the event bus, maps to `village_activity`, applies `min_level_to_see_detail` rules automatically
-4. Nothing else required in the tool
+   (define level-specific templates for each activity type)
 
-For interactions coming back (comments, suggestions):
-- Admin polls for village interactions and routes them back via the event bus to the relevant tool
-- Tool listens on its event bus channel for `village:interaction` events
+2. Call the existing IPC: `window.api.publishEvent(toolId, activityType, payload)`
+   — **no new IPC needed**, the events table is already built
+
+3. Admin's village pipeline handles the rest:
+   - Reads from events table
+   - Renders level-specific strings from the tool's templates
+   - Stores in village_activity
+   - Syncs to Supabase
+
+4. Interactions back (comments/suggestions) arrive via the event bus as
+   `village:interaction` events — tool can listen for these if it wants to surface them
 
 ---
 
 ## Implementation phases
 
-### Phase 1 — Core sharing (build this first)
-- [ ] `village_members`, `village_access`, `village_tokens`, `village_activity` tables
-- [ ] Admin event → village_activity pipeline (`village:processEvents` cron)
-- [ ] Express HTTP server on :7700 with magic link auth
-- [ ] Member web UI: feed page only (read-only)
-- [ ] Admin UI: Members page (add member, set access, generate link)
-- [ ] Village Protocol: update grove/tool.json with `village.activity_types`
-- [ ] Cloudflare Tunnel integration (start/stop from Admin, display URL)
+### Phase 1 — Ship the core
+- [ ] Village tags data model + Admin UI (Members + Tags tabs)
+- [ ] village_activity pipeline (events → village_activity, level-specific rendering)
+- [ ] Supabase project setup + schema + RLS policies
+- [ ] Admin sync: push village_activity to Supabase on new events
+- [ ] Village web app: Feed page + single activity page (read-only first)
+- [ ] Supabase magic link auth → village member can sign in
+- [ ] Update grove/tool.json with village.activity_types templates
+- [ ] Admin Settings → Village (Supabase credentials)
 
-### Phase 2 — Engagement
-- [ ] Comments and reactions
-- [ ] Email digest (nodemailer)
-- [ ] Notification preferences UI
-- [ ] Stable tunnel URL (named Cloudflare Tunnel)
-- [ ] Member profile page
+### Phase 2 — Engagement + persistence
+- [ ] Comments + reactions (web app → Supabase → sync back to admin.db)
+- [ ] Email digest (Admin cron → nodemailer or Supabase edge function)
+- [ ] Member profile page + notification preferences
+- [ ] Admin Activity tab (see comments from members, reply)
+- [ ] Realtime feed updates in web app (Supabase realtime)
 
-### Phase 3 — Relational depth
-- [ ] Village member has their own Admin suite → cross-village resonance feed
-- [ ] "What are they working on?" surface in your Admin
-- [ ] Co-creator flows (tool-specific)
+### Phase 3 — Encryption + relational depth
+- [ ] Client-side E2E encryption (AES-256-GCM, per-member keys)
+- [ ] Village member's own Admin suite → cross-village resonance
+- [ ] Collaborative views (Collaborator level, tool-specific)
 
 ---
 
-## Open questions / decisions before building
+## Resolved open questions
 
-1. **Tunnel persistence**: Is a changing URL per-session acceptable for Phase 1, or do you want a stable URL from day one? (Stable requires a Cloudflare account + domain — 15min setup.)
+| Question | Decision |
+|----------|----------|
+| Hosted website or local server? | Hosted: Vercel (web app) + Supabase (backend). No tunnel needed. |
+| Notification channel? | Email digest — Supabase magic links handle member auth email; nodemailer for digests |
+| Activity granularity? | Each tool defines its own templates per permission level in tool.json |
+| Stable URL? | Yes — Vercel gives a permanent URL; member bookmarks it |
+| Data storage | Local admin.db (source of truth) + Supabase (encrypted cloud sync) |
+| Tags | Yes — tag = default access bundle; per-person overrides stack on top |
 
-2. **Member web UI hosting**: Local server (requires Admin to be running for members to access) vs. a small deployed server that syncs from your local DB. For Phase 1, local + tunnel is the simplest.
+## Remaining open questions
 
-3. **Notification channel**: Email only for Phase 1? Or do you have a preferred channel (iMessage, WhatsApp, Telegram bot)?
+1. **Village web app name/domain?** The Vercel URL can be custom (e.g. `village.yourname.dev`)
+   with a free domain or a custom one you own.
 
-4. **Granularity of activity**: For Grove — should village members see individual sessions, or just daily/weekly summaries? (The schema supports both; the tool.json controls it.)
+2. **Cross-village (Phase 3)?** If a village member also builds their own tools, do you want
+   mutual visibility — i.e., you can follow *their* journey too? Or is this one-directional?
 
-5. **The "relational" vision (Phase 3)**: This implies village members might also build their own tools and you'd have mutual visibility. Is this a near-term goal or a long-horizon aspiration?
+3. **Interaction back-channel?** When a Collaborator on Grove suggests a resource — where
+   does that surface in your Grove UI? A notification badge? A dedicated inbox in Admin?
