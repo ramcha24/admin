@@ -1,10 +1,12 @@
 {
-  "last_commit": "265a507",
-  "updated_at": "2026-03-17T06:27:16.390Z",
-  "dev_summary": "Recent commits have significantly enhanced the Admin tool, introducing a robust inter-tool service contract system with capability gateways, enabling tools to communicate with each other via typed services. A new tool dev tracking system with phase badges, summaries, and next steps has been implemented, alongside a lightweight issue tracker for bug and feature requests. The tool discovery process now automatically scaffolds new tools with the necessary files, facilitating rapid development.",
+  "last_commit": "faaf757",
+  "updated_at": "2026-03-17T07:23:24.914Z",
+  "dev_summary": "Recent commits have focused on improving the Admin tool management capabilities, including adding a tool protocol compliance levels system with badges, implementing a lightweight issues tracker, and integrating Tantu as a first-class tool. The addition of the Village Identity card and improvements to the activity feed further enhance the user experience.",
   "next_steps": [
-    "Implement the 'think' service contract, mirroring the 'grove' service.",
-    "Develop the complete 'toolname:resource:action' handler within electron/main.js, including full error handling.",
-    "Integrate the 'ideas' functionality with the new service contract system, enabling the LLM to generate prompts for tools."
+    "Implement the full 'issues tracker' functionality, allowing users to create, assign, and resolve bugs and feature requests.",
+    "Refine the LLM-generated plan scaffolding process, improving the quality and completeness of the generated code and documentation.",
+    "Expand the service contract system with additional capabilities and support for more complex interactions between tools.",
+    "Implement a user interface for managing workflow triggers and conditions, providing a more visual and intuitive way to define automated actions.",
+    "Add unit tests for critical components, particularly around the tool discovery and launch mechanisms, to improve reliability."
   ]
 }

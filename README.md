@@ -34,14 +34,14 @@ Every tool can declare typed HTTP services in its `tool.json`. Admin runs a **ca
 ### Village social layer
 Admin manages a local-first social network around your tools:
 - **Members** — people you want to share your work with, each with an access tier (follower → collaborator)
-- **Activity feed** — automatically populated from Grove sessions, commits, and other events
+- **Activity feed** — automatically populated from your registered tools' sessions, commits, and other events
 - **Inbox** — see reactions and comments from members; reply inline
 - **Email digest** — daily summary email to all members with email addresses configured
 - **Supabase sync** — push activity to Supabase so members can access their feed from a hosted page
 - **Tags** — group members and set default per-tool access
 
 ### Workflows
-Define trigger → action rules. Example: whenever Grove logs a session, sync the village feed. Built on the same inter-tool event bus.
+Define trigger → action rules. Example: whenever a tool logs a session, sync the village feed. Built on the same inter-tool event bus.
 
 ### Stories browser
 Read and filter USER_STORIES.md files from all registered tools in one place.
@@ -96,7 +96,7 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 | File | Role |
 |---|---|
 | `electron/main.js` | All IPC handlers: tool discovery, launch/stop, ideas, village, workflows, settings |
-| `electron/village.js` | Village HTTP server (port 7700), grove sync pipeline, feed API |
+| `electron/village.js` | Village HTTP server (port 7700), tool sync pipeline, feed API |
 | `electron/supabase.js` | Supabase push/pull for village activity and member feeds |
 | `electron/digest.js` | Nodemailer daily email digest |
 | `electron/database.js` | admin.db schema: tool_registry, events, ideas, village_*, workflows |
@@ -126,22 +126,24 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have significantly expanded Admin's functionality, particularly around tool management and service contracts. The ToolDetail control panel, ToolDropdown filters, and a tool dev tracking system (phase badges, summaries, next steps) have been added. Inter-tool service contracts with capability gateways and IPC handlers are now implemented, allowing tools to seamlessly communicate via typed contracts. The Grove and Think tools are now fully integrated and discoverable.
+Recent commits have focused on improving the Admin tool management capabilities, including adding a tool protocol compliance levels system with badges, implementing a lightweight issues tracker, and integrating Tantu as a first-class tool. The addition of the Village Identity card and improvements to the activity feed further enhance the user experience.
 
 **Next steps:**
-- Implement the 'think' service contract, mirroring the 'grove' implementation.
-- Develop the handler logic within `electron/main.js` to process and respond to 'think' service calls.
-- Create a UI component to display the 'think' service in the tool card catalog, alongside the 'grove' service.
+- Implement the full 'issues tracker' functionality, allowing users to create, assign, and resolve bugs and feature requests.
+- Refine the LLM-generated plan scaffolding process, improving the quality and completeness of the generated code and documentation.
+- Expand the service contract system with additional capabilities and support for more complex interactions between tools.
+- Implement a user interface for managing workflow triggers and conditions, providing a more visual and intuitive way to define automated actions.
+- Add unit tests for critical components, particularly around the tool discovery and launch mechanisms, to improve reliability.
 
 **Recent commits:**
+- `faaf757` Fix documentation accuracy — correct db schema table names and village pipeline
+- `ce61d5c` Sanitize public docs — replace personal tool names with generic examples
+- `e295ba6` Fix Issues 'Fix it' button — write prompt+script to /tmp, exec via bash
+- `0d3b481` Secure feed tokens, last-seen tracking, and email invite buttons
+- `af77f77` Add Village Identity card and fix duplicate poll effect
+- `32b4675` Update dev-status.json
+- `265a507` Village activity feed, enriched seed data, and ToolDropdown UI improvements
 - `9a13eaa` Track update-dev-status script in repo (scripts/)
 - `17a192b` Add fs:listDir and fs:readFile IPC handlers for codebase browser
 - `4d66f64` Add ToolDetail control panel, ToolDropdown filters, and admin README
-- `8b0cfb7` Add tool protocol compliance levels (L1/L2/L3) with badge on tool cards
-- `d62069e` Auto-install post-commit hook on every tool at scaffold and discover time
-- `165f3e9` Add dev-status.json — LLM-generated summary and next steps
-- `4711543` Read dev-status.json at discover time to sync LLM-generated summaries into DB
-- `82b5481` Integrate Tantu as first-class tool in Admin ecosystem
-- `e2c59ed` Stories: replace single-select tag pills with multi-select tool dropdown
-- `5ec7230` Add inter-tool service contract system with capability gateway
 <!-- STATUS:END -->
