@@ -1,10 +1,12 @@
 {
-  "last_commit": "3f648d6",
-  "updated_at": "2026-03-17T15:41:52.107Z",
-  "dev_summary": "Recent commits have significantly expanded Admin's capabilities with the addition of the 'Try-it' panel for CapabilitiesPage and Idea conversion, alongside improvements to Idea ingestion and file handling. The Village section has been enhanced with a new Identity card, enriched seed data, and UI improvements, while also focusing on secure token management and email functionality.",
+  "last_commit": "fb25802",
+  "updated_at": "2026-03-17T16:03:33.465Z",
+  "dev_summary": "Recent commits have focused on stabilizing the Admin desktop tool, enhancing its reliability and usability. Key changes include single-instance locking, improved error handling for the village server, a 'Try-it' panel for service capabilities, and streamlined file ingestion with support for various document formats. The core architecture remains centered around Electron, React, and Supabase, facilitating a local-first social experience.",
   "next_steps": [
-    "Implement the 'Try-it' panel functionality with proper UI and error handling.",
-    "Refine the Idea ingestion process, specifically addressing DOCX/DOC/RTF parsing and logging.",
-    "Develop a UI for managing workflow triggers and actions, allowing users to define and test automated responses."
+    "Implement a comprehensive testing suite for the newly added 'Try-it' panel to ensure accurate JSON results and error handling.",
+    "Refine the workflow for triggering email digests to optimize delivery frequency and content based on user activity.",
+    "Investigate and address any remaining performance bottlenecks in the village feed generation process, particularly regarding large datasets.",
+    "Document the new file ingestion handler and its interaction with the LLM, including potential limitations and configuration options.",
+    "Add a UI element for users to manually trigger a 'discover' run on the admin app."
   ]
 }

@@ -126,14 +126,18 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have significantly expanded Admin's capabilities with the addition of the 'Try-it' panel for CapabilitiesPage and Idea conversion, alongside improvements to Idea ingestion and file handling. The Village section has been enhanced with a new Identity card, enriched seed data, and UI improvements, while also focusing on secure token management and email functionality.
+Recent commits have focused on stabilizing the Admin desktop tool, enhancing its reliability and usability. Key changes include single-instance locking, improved error handling for the village server, a 'Try-it' panel for service capabilities, and streamlined file ingestion with support for various document formats. The core architecture remains centered around Electron, React, and Supabase, facilitating a local-first social experience.
 
 **Next steps:**
-- Implement the 'Try-it' panel functionality with proper UI and error handling.
-- Refine the Idea ingestion process, specifically addressing DOCX/DOC/RTF parsing and logging.
-- Develop a UI for managing workflow triggers and actions, allowing users to define and test automated responses.
+- Implement a comprehensive testing suite for the newly added 'Try-it' panel to ensure accurate JSON results and error handling.
+- Refine the workflow for triggering email digests to optimize delivery frequency and content based on user activity.
+- Investigate and address any remaining performance bottlenecks in the village feed generation process, particularly regarding large datasets.
+- Document the new file ingestion handler and its interaction with the LLM, including potential limitations and configuration options.
+- Add a UI element for users to manually trigger a 'discover' run on the admin app.
 
 **Recent commits:**
+- `fb25802` Add single-instance lock, stable release publish flow, and release script
+- `a1070a6` Add EADDRINUSE error handling to village server; update dev-status
 - `3f648d6` Add Try-it panel to CapabilitiesPage and Ideas→Issue conversion
 - `958dec1` Ideas: truncate card summaries with inline more → link
 - `20a17d6` Ideas: hide tag display, keep tags for search only
@@ -142,6 +146,4 @@ Recent commits have significantly expanded Admin's capabilities with the additio
 - `51cae13` Ideas: auto-extract ideas from file instead of dumping raw content
 - `e83add4` Issues: simplify tags; Ideas: file ingestion with attachment storage
 - `f2d5103` Sanitize public docs and fix documentation accuracy (#4)
-- `e295ba6` Fix Issues 'Fix it' button — write prompt+script to /tmp, exec via bash
-- `0d3b481` Secure feed tokens, last-seen tracking, and email invite buttons
 <!-- STATUS:END -->
