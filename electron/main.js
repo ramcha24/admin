@@ -797,8 +797,28 @@ Respond with a JSON array only. No markdown fences, no explanation.`
       return { ok: true, ideas: Array.isArray(parsed) ? parsed : [parsed] }
     }
 
-    // Text files: decode base64 → UTF-8 text
-    const text = Buffer.from(dataBase64, 'base64').toString('utf-8')
+    // Office/RTF formats — use macOS textutil to extract plain text
+    const ext = filename.toLowerCase().replace(/^.*\./, '')
+    const isOffice = ['docx', 'doc', 'rtf', 'odt'].includes(ext)
+      || (mimeType || '').includes('wordprocessingml')
+      || (mimeType || '').includes('msword')
+
+    let text
+    if (isOffice) {
+      const tmpPath = path.join(os.tmpdir(), `admin-ingest-${Date.now()}.${ext}`)
+      fs.writeFileSync(tmpPath, Buffer.from(dataBase64, 'base64'))
+      text = await new Promise((resolve, reject) => {
+        execFile('textutil', ['-convert', 'txt', '-stdout', tmpPath], (err, stdout) => {
+          try { fs.unlinkSync(tmpPath) } catch {}
+          if (err) reject(new Error(`textutil could not read ${filename}: ${err.message}`))
+          else resolve(stdout)
+        })
+      })
+    } else {
+      // Plain text, markdown, JSON, CSV etc.
+      text = Buffer.from(dataBase64, 'base64').toString('utf-8')
+    }
+
     const llmText = await llmComplete(
       [{ role: 'user', content: text.slice(0, 12000) }],
       { systemPrompt: SYSTEM, maxTokens: 2048 }
