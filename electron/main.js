@@ -234,12 +234,13 @@ ipcMain.handle('tools:discover', () => {
     const hasDevStatus = fs.existsSync(path.join(dirPath, 'dev-status.json'))
     const hasStories   = fs.existsSync(path.join(dirPath, 'USER_STORIES.md'))
     const hasClaude    = fs.existsSync(path.join(dirPath, 'CLAUDE.md'))
+    const hasRelease   = fs.existsSync(path.join(dirPath, 'release.sh'))
     const hasVillage   = !!(manifest.village?.activity_types?.length)
     const hasServices  = !!(manifest.service_port && manifest.services?.length)
     const devPhase     = row.dev_phase ?? 'planning'
     let protocol_level = 0
     if (fs.existsSync(path.join(dirPath, '.git')) && hasClaude) protocol_level = 1
-    if (protocol_level >= 1 && hasStories && hasHook && hasDevStatus && devPhase !== 'planning') protocol_level = 2
+    if (protocol_level >= 1 && hasStories && hasHook && hasDevStatus && hasRelease && devPhase !== 'planning') protocol_level = 2
     if (protocol_level >= 2 && hasServices && hasVillage) protocol_level = 3
 
     tools.push({
