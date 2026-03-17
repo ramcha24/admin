@@ -73,7 +73,6 @@ function createSchema() {
       created_at  TEXT DEFAULT (datetime('now')),
       updated_at  TEXT DEFAULT (datetime('now'))
     );
-  `)
 
     -- Village: identity (singleton)
     CREATE TABLE IF NOT EXISTS village_identity (
