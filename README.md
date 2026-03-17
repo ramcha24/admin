@@ -126,24 +126,23 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have finalized the core admin UI, including the Capabilities page with Try-it panel and service contract discovery. The workflow engine is functional, allowing for automated actions based on tool events. Key improvements include a robust auto-push mechanism, stable release publishing, and EADDRINUSE error handling for the village server.
+Admin v1.0.5 has implemented a release script (`release.sh`) for automated packaging and version bumping, including L2 compliance checks and Supabase sync. It enforces a feature-branch workflow with a pre-push hook and stable release publishing flow, and adds app icons and EADDRINUSE error handling for the village server. Tool discovery and invocation via a capabilities page with 'Try it' panel are also operational.
 
 **Next steps:**
-- Implement proper logging and error reporting within the village server and tool service contracts.
-- Develop a more user-friendly interface for managing workflow definitions, including drag-and-drop configuration.
-- Add support for more complex payload transformations within the workflows, enabling greater flexibility for tool interactions.
-- Implement comprehensive testing for all new features, focusing on edge cases and error handling.
-- Refactor code to enhance scalability and improve performance, particularly for the village server and feed processing.
+- Implement detailed logging and monitoring within the `electron/main.js` to aid debugging and identify performance bottlenecks.
+- Expand the Ideas page's file ingestion support to include more document types (e.g., more complex PDF parsing).
+- Develop a user interface for managing the village members' access levels (follower/reader/commenter/collaborator) within the Admin app.
+- Add unit tests for key modules, particularly the `electron/village.js` and `electron/supabase.js` code to ensure stability and prevent regressions.
 
 **Recent commits:**
+- `a28744e` feat: add release.sh to L2 compliance check and update TOOL_PROTOCOL.md
+- `33308eb` chore: release v1.0.5
+- `72bcf2e` Merge pull request #8 from ramcha24/feature/release-script-auto-push
+- `f23aa59` chore: update auto-generated files
 - `a6b7f58` release.sh: auto-push to origin after packaging
 - `1e2b7cc` chore: release v1.0.4
 - `fa2d65d` Merge pull request #7 from ramcha24/feature/enforce-branch-workflow
 - `5661c6c` release.sh: use --no-verify for version bump commits (legitimately on main)
 - `62aa8c1` chore: update auto-generated files
 - `10c2065` Enforce feature-branch workflow: pre-push hook + PreToolUse guard
-- `8876839` chore: release v1.0.3
-- `a267d07` chore: update auto-generated files
-- `10ac88f` Add app icon and wire into electron-builder config
-- `c9723aa` chore: release v1.0.2
 <!-- STATUS:END -->
