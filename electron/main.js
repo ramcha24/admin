@@ -5,6 +5,7 @@ const { execFile, spawn } = require('child_process')
 const { initDatabase, getDb } = require('./database')
 const { startVillageServer, stopVillageServer, syncGroveActivity, VILLAGE_PORT } = require('./village')
 const { syncToSupabase } = require('./supabase')
+const { scheduleDailyDigest, cancelDigestSchedule, runDailyDigest } = require('./digest')
 
 const isDev = process.argv.includes('--dev')
 const ADMIN_PARENT = path.resolve(__dirname, '../../')  // /Users/ramcha1994/Admin
@@ -41,13 +42,14 @@ function createWindow() {
 app.whenReady().then(() => {
   initDatabase()
   startVillageServer()
+  scheduleDailyDigest(getDb())
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-app.on('before-quit', () => stopVillageServer())
+app.on('before-quit', () => { stopVillageServer(); cancelDigestSchedule() })
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
@@ -814,6 +816,16 @@ ipcMain.handle('village:deleteTag', (_, id) => {
 ipcMain.handle('village:assignTag', (_, { memberId, tagId }) => {
   getDb().prepare('UPDATE village_members SET tag_id=? WHERE id=?').run(tagId ?? null, memberId)
   return { ok: true }
+})
+
+// ─── Digest ───────────────────────────────────────────────────────────────────
+
+ipcMain.handle('digest:runNow', async () => {
+  try {
+    return await runDailyDigest(getDb())
+  } catch (e) {
+    return { error: e.message }
+  }
 })
 
 // ─── Shell ────────────────────────────────────────────────────────────────────

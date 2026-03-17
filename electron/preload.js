@@ -53,6 +53,9 @@ contextBridge.exposeInMainWorld('api', {
   deleteVillageTag:      (id)     => invoke('village:deleteTag', id),
   assignVillageTag:      (data)   => invoke('village:assignTag', data),
 
+  // Digest
+  runDigestNow:     ()                   => invoke('digest:runNow'),
+
   // Shell
   openExternal:     (url)                => invoke('shell:openExternal', url),
 })
