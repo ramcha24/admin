@@ -114,6 +114,15 @@ Acceptance criteria:
 - The test URL is displayed in the server status panel with copy and open buttons
 - The feed at that URL shows Grove sessions and streak card visible to a reader
 
+### 3.5 Edit a member's access after adding them
+**As a user, I can edit a member's email, tag, and per-tool access levels after they've been added, so that I can adjust permissions as relationships evolve.**
+
+Acceptance criteria:
+- Each member card shows an edit (pencil) icon button
+- Clicking it opens a modal pre-filled with current email, tag, and access levels
+- Saving updates the database and the member card reflects the changes immediately
+- Access level changes take effect on the next feed request
+
 ### 3.4 Assign a tag to a member
 **As a user, I can assign a tag to a member (during add or later), so that they inherit the tag's default access levels without manual per-tool configuration.**
 

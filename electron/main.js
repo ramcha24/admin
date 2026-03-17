@@ -707,6 +707,12 @@ ipcMain.handle('village:addMember', (_, { name, email, avatarEmoji, tagId }) => 
   return { ok: true, id, url: `http://localhost:${VILLAGE_PORT}/?member=${id}` }
 })
 
+ipcMain.handle('village:updateMember', (_, { id, email, tagId }) => {
+  const db = getDb()
+  db.prepare('UPDATE village_members SET email=?, tag_id=? WHERE id=?').run(email, tagId ?? null, id)
+  return { ok: true }
+})
+
 ipcMain.handle('village:setAccess', (_, { memberId, toolId, level }) => {
   getDb().prepare(`
     INSERT OR REPLACE INTO village_access (member_id, tool_id, level)

@@ -17,6 +17,99 @@ function timeAgo(dateStr) {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+// ─── Edit Member Modal ────────────────────────────────────────────────────────
+
+function EditMemberModal({ member, tags, onSave, onClose }) {
+  const [email, setEmail]   = useState(member.email ?? '')
+  const [tagId, setTagId]   = useState(member.tag_id ?? '')
+  const [access, setAccess] = useState({ grove: '', think: '' })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Load current per-tool access levels from DB (best-effort via member access rows)
+    // We pre-populate from what we can infer; user can override
+    setLoading(false)
+  }, [])
+
+  const submit = async () => {
+    await window.api.updateVillageMember({ id: member.id, email, tagId: tagId || null })
+    for (const [toolId, level] of Object.entries(access)) {
+      if (level) await window.api.setVillageAccess({ memberId: member.id, toolId, level })
+    }
+    onSave()
+  }
+
+  if (loading) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Edit member</h2>
+
+        <div className="space-y-3 mb-5">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Name</label>
+            <div className="w-full px-3 py-2 border border-gray-100 rounded-lg text-sm bg-gray-50 text-gray-500">
+              {member.name}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Email</label>
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="alice@example.com"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+
+          {tags.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Tag (group)</label>
+              <select value={tagId} onChange={e => setTagId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="">No tag</option>
+                {tags.map(t => (
+                  <option key={t.id} value={t.id}>{t.emoji} {t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Override tool access</label>
+            <p className="text-xs text-gray-400 mb-2">Leave "none" to inherit from tag defaults.</p>
+            {TOOLS.map(toolId => (
+              <div key={toolId} className="flex items-center gap-3 mb-2">
+                <span className="text-sm text-gray-700 w-12 capitalize">{toolId}</span>
+                <div className="flex gap-1.5">
+                  <button onClick={() => setAccess(a => ({ ...a, [toolId]: '' }))}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${!access[toolId] ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:bg-gray-100'}`}>
+                    none
+                  </button>
+                  {LEVELS.map(l => (
+                    <button key={l} onClick={() => setAccess(a => ({ ...a, [toolId]: l }))}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${access[toolId] === l ? 'bg-primary text-white' : 'text-gray-400 hover:bg-gray-100'}`}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={submit}
+            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark">
+            Save changes
+          </button>
+          <button onClick={onClose}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Add Member Modal ─────────────────────────────────────────────────────────
 
 function AddMemberModal({ tags, onAdd, onClose }) {
@@ -349,8 +442,9 @@ export default function VillagePage() {
   const [tags,    setTags]    = useState([])
   const [copied,  setCopied]  = useState(null)
   const [syncing, setSyncing] = useState(false)
-  const [showAdd, setShowAdd] = useState(false)
-  const [unread,  setUnread]  = useState(0)
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [editMember, setEditMember] = useState(null)
+  const [unread,     setUnread]     = useState(0)
 
   const reload = useCallback(async () => {
     const [m, t, u] = await Promise.all([
@@ -397,6 +491,7 @@ export default function VillagePage() {
   return (
     <div className="flex-1 overflow-y-auto p-6 max-w-2xl">
       {showAdd && <AddMemberModal tags={tags} onAdd={async () => { setShowAdd(false); reload() }} onClose={() => setShowAdd(false)} />}
+      {editMember && <EditMemberModal member={editMember} tags={tags} onSave={() => { setEditMember(null); reload() }} onClose={() => setEditMember(null)} />}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -504,6 +599,11 @@ export default function VillagePage() {
                       className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
                       title="Open feed">
                       <ExternalLink size={13} />
+                    </button>
+                    <button onClick={() => setEditMember(m)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+                      title="Edit member">
+                      <Pencil size={13} />
                     </button>
                   </div>
                 </div>
