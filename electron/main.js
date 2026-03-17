@@ -334,8 +334,8 @@ ipcMain.handle('tools:launch', (_, id) => {
   if (!tool) return { ok: false, error: 'Tool not found' }
   if (runningTools[id]) return { ok: false, error: 'Already running' }
 
-  // Prefer packaged stable .app if available; fall back to dev server
-  if (tool.launch_app) {
+  // Prefer packaged stable .app if available and still exists; fall back to dev server
+  if (tool.launch_app && fs.existsSync(tool.launch_app)) {
     const safeApp = tool.launch_app.replace(/'/g, "'\\''")
     spawn('bash', ['-c', `open '${safeApp}'`], { detached: true, stdio: 'ignore' }).unref()
     return { ok: true, mode: 'stable' }
@@ -344,20 +344,47 @@ ipcMain.handle('tools:launch', (_, id) => {
   const launchCmd = tool.launch_dev
   if (!launchCmd) return { ok: false, error: 'No launch command' }
 
+  if (!fs.existsSync(tool.dir_path)) {
+    return { ok: false, error: `Tool directory not found: ${tool.dir_path}` }
+  }
+
+  const logPath = path.join(os.tmpdir(), `admin-launch-${id}.log`)
+  let logFd
+  try {
+    logFd = fs.openSync(logPath, 'w')
+  } catch {
+    logFd = null
+  }
+
   const child = spawn('bash', ['-c', launchCmd], {
     cwd: tool.dir_path,
     detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', logFd ?? 'ignore', logFd ?? 'ignore'],
+    env: process.env,
   })
+  if (logFd !== null) fs.closeSync(logFd)
+
+  if (!child.pid) {
+    return { ok: false, error: 'Failed to start process — check PATH or node_modules' }
+  }
+
   child.unref()
 
   runningTools[id] = { pid: child.pid, process: child }
 
-  child.on('exit', () => {
+  child.on('error', err => {
+    console.error(`[launch:${id}] spawn error: ${err.message}`)
     delete runningTools[id]
   })
 
-  return { ok: true, mode: 'dev', pid: child.pid }
+  child.on('exit', code => {
+    if (code !== 0 && code !== null) {
+      console.error(`[launch:${id}] exited with code ${code} — see ${logPath}`)
+    }
+    delete runningTools[id]
+  })
+
+  return { ok: true, mode: 'dev', pid: child.pid, logFile: logPath }
 })
 
 ipcMain.handle('tools:stop', (_, id) => {
@@ -454,6 +481,7 @@ ipcMain.handle('tools:status', () => {
     const entry = runningTools[t.id]
     if (entry) {
       try {
+        if (!entry.pid) throw new Error('no pid')
         process.kill(entry.pid, 0)  // Signal 0 = check if alive
         status[t.id] = 'running'
       } catch {

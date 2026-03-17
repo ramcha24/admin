@@ -139,6 +139,7 @@ export default function ToolGrid({ onNewTool }) {
   const [editing,      setEditing]      = useState(null)
   const [selectedTool, setSelectedTool] = useState(null)
   const [issueCounts,  setIssueCounts]  = useState({}) // { toolId: { bug: N, feature: N } }
+  const [launchError,  setLaunchError]  = useState(null)
 
   const loadIssueCounts = useCallback(async () => {
     try {
@@ -178,7 +179,11 @@ export default function ToolGrid({ onNewTool }) {
   }, [discover])
 
   const handleLaunch = async (id) => {
-    await window.api.launchTool(id)
+    setLaunchError(null)
+    const result = await window.api.launchTool(id)
+    if (result && !result.ok) {
+      setLaunchError(result.error)
+    }
     setTimeout(async () => setStatus(await window.api.getToolStatus()), 1000)
   }
 
@@ -253,6 +258,13 @@ export default function ToolGrid({ onNewTool }) {
           onSave={handleSaveDevInfo}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {launchError && (
+        <div className="mb-4 flex items-center justify-between rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+          <span>Launch failed: {launchError}</span>
+          <button onClick={() => setLaunchError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+        </div>
       )}
 
       {/* Header */}
