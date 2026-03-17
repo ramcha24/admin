@@ -113,14 +113,6 @@ function IdeaCard({ idea, onPlan, onDelete, onEdit, planning }) {
 
       <p className="text-sm text-gray-500 leading-relaxed flex-1">{idea.summary}</p>
 
-      {idea.tags?.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {idea.tags.map(tag => (
-            <span key={tag} className="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-500">{tag}</span>
-          ))}
-        </div>
-      )}
-
       <div className="flex items-center justify-between pt-1 border-t border-gray-50">
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">
@@ -443,7 +435,6 @@ export default function IdeasPage() {
   const [loading,   setLoading]   = useState(true)
   const [planning,  setPlanning]  = useState(null)
   const [search,    setSearch]    = useState('')
-  const [activeTag, setActiveTag] = useState(null)
   const [editing,   setEditing]   = useState(null)
   const [storing,   setStoring]   = useState(false)
 
@@ -455,25 +446,15 @@ export default function IdeasPage() {
 
   useEffect(() => { load() }, [])
 
-  const allTags = useMemo(() => {
-    const set = new Set()
-    ideas.forEach(i => (i.tags ?? []).forEach(t => set.add(t)))
-    return [...set].sort()
-  }, [ideas])
-
   const filtered = useMemo(() => {
-    let result = ideas
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      result = result.filter(i =>
-        i.title.toLowerCase().includes(q) ||
-        i.summary.toLowerCase().includes(q) ||
-        (i.tags ?? []).some(t => t.toLowerCase().includes(q))
-      )
-    }
-    if (activeTag) result = result.filter(i => (i.tags ?? []).includes(activeTag))
-    return result
-  }, [ideas, search, activeTag])
+    if (!search.trim()) return ideas
+    const q = search.toLowerCase()
+    return ideas.filter(i =>
+      i.title.toLowerCase().includes(q) ||
+      i.summary.toLowerCase().includes(q) ||
+      (i.tags ?? []).some(t => t.toLowerCase().includes(q))
+    )
+  }, [ideas, search])
 
   const handlePlan = async (idea) => {
     setPlanning(idea.id)
@@ -537,28 +518,14 @@ export default function IdeasPage() {
 
       {/* Search + tag filter */}
       {ideas.length > 0 && (
-        <div className="mb-5 space-y-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ideas…"
-              className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          {allTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {allTags.map(tag => (
-                <button key={tag} onClick={() => setActiveTag(activeTag === tag ? null : tag)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                    activeTag === tag ? 'bg-indigo-500 text-white' : 'bg-indigo-50 text-indigo-500 hover:bg-indigo-100'
-                  }`}>
-                  {tag}
-                </button>
-              ))}
-            </div>
+        <div className="mb-5 relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ideas…"
+            className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X size={14} />
+            </button>
           )}
         </div>
       )}
@@ -578,7 +545,7 @@ export default function IdeasPage() {
           <div className="text-center py-16 text-gray-400">
             <Search size={28} className="mx-auto mb-3 opacity-30" />
             <p className="font-medium text-sm">No ideas match</p>
-            <button onClick={() => { setSearch(''); setActiveTag(null) }}
+            <button onClick={() => setSearch('')}
               className="mt-2 text-xs text-indigo-500 hover:text-indigo-700 font-medium">
               Clear filters
             </button>
