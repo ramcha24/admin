@@ -1371,6 +1371,29 @@ function startCapabilityGateway() {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
 
+    // Session-done callback — shell script calls this after `claude` exits
+    if (req.url === '/session-done' && req.method === 'POST') {
+      let body = ''
+      req.on('data', c => { body += c })
+      req.on('end', () => {
+        try {
+          const { issueIds, prUrl } = JSON.parse(body)
+          const resNote = prUrl ? `PR: ${prUrl}` : 'Closed after Build it session'
+          for (const id of (issueIds ?? [])) {
+            db.prepare(
+              `UPDATE issues SET status='done', resolved_at=datetime('now'), resolution_note=? WHERE id=? AND status='open'`
+            ).run(resNote, id)
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: e.message }))
+        }
+      })
+      return
+    }
+
     const match = req.url.match(/^\/capabilities\/call\/(.+)$/)
     if (!match || req.method !== 'POST') {
       res.writeHead(404, { 'Content-Type': 'application/json' })
@@ -1514,42 +1537,64 @@ ipcMain.handle('issues:delete', (_, id) => {
   return { ok: true }
 })
 
-ipcMain.handle('issues:startSession', async (_, id) => {
+ipcMain.handle('issues:startSession', async (_, ids) => {
   const db = getDb()
-  const issue = db.prepare('SELECT * FROM issues WHERE id=?').get(id)
-  if (!issue) return { ok: false, error: 'Issue not found' }
+  const idList  = Array.isArray(ids) ? ids : [ids]
+  const issues  = idList.map(id => db.prepare('SELECT * FROM issues WHERE id=?').get(id)).filter(Boolean)
+  if (!issues.length) return { ok: false, error: 'No issues found' }
 
-  const tool = db.prepare('SELECT * FROM tool_registry WHERE id=?').get(issue.tool_id)
+  const tool = db.prepare('SELECT * FROM tool_registry WHERE id=?').get(issues[0].tool_id)
   if (!tool) return { ok: false, error: 'Tool not found' }
 
-  const typeLabel = issue.type === 'bug' ? 'Bug fix' : 'Feature'
-  const descPart  = issue.description ? `\n\nContext:\n${issue.description}` : ''
-  const prompt    = `${typeLabel}: ${issue.title}${descPart}\n\nDo ONLY this and nothing else.`
+  // Branch name
+  let branchName
+  if (idList.length === 1) {
+    const slug = issues[0].title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+    branchName = `issue-${idList[0]}-${slug}`
+  } else {
+    branchName = `issues-${idList.join('-')}`
+  }
 
-  // Write prompt and a launcher script to /tmp to avoid escaping newlines in osascript strings.
-  const promptPath = path.join(os.tmpdir(), `admin-issue-${id}.txt`)
-  const shPath     = path.join(os.tmpdir(), `admin-issue-${id}.sh`)
+  // Build prompt
+  let prompt
+  if (idList.length === 1) {
+    const typeLabel = issues[0].type === 'bug' ? 'Bug fix' : 'Feature'
+    const descPart  = issues[0].description ? `\n\nContext:\n${issues[0].description}` : ''
+    prompt = `${typeLabel}: ${issues[0].title}${descPart}\n\nDo ONLY this and nothing else.`
+  } else {
+    const items = issues.map((iss, i) => {
+      const typeLabel = iss.type === 'bug' ? 'Bug fix' : 'Feature'
+      const descPart  = iss.description ? `\n   Context: ${iss.description}` : ''
+      return `${i + 1}. [${typeLabel}] ${iss.title}${descPart}`
+    }).join('\n')
+    prompt = `Work on the following ${issues.length} issues in one session:\n\n${items}\n\nImplement each one in order. Do ONLY these and nothing else.`
+  }
+
+  const fileKey    = idList.join('-')
+  const promptPath = path.join(os.tmpdir(), `admin-issue-${fileKey}.txt`)
+  const shPath     = path.join(os.tmpdir(), `admin-issue-${fileKey}.sh`)
   const safeDir    = tool.dir_path.replace(/'/g, "'\\''")
   const safePpt    = promptPath.replace(/'/g, "'\\''")
   const safeSh     = shPath.replace(/'/g, "'\\''")
-
-  // Branch name: issue-{id}-{slugified-title}
-  const branchSlug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
-  const branchName = `issue-${id}-${branchSlug}`
+  const safeIds    = JSON.stringify(idList)   // e.g. [1,3]
 
   fs.writeFileSync(promptPath, prompt)
   fs.writeFileSync(shPath, [
     '#!/bin/bash',
     `cd '${safeDir}'`,
-    // Create branch if not already on one for this issue
     `CURRENT=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)`,
     `if [ "$CURRENT" = "main" ] || [ "$CURRENT" = "master" ]; then`,
     `  git checkout -b '${branchName}' 2>/dev/null || git checkout '${branchName}' 2>/dev/null`,
     `fi`,
     `claude "$(cat '${safePpt}')"`,
+    // After session: find PR on this branch and close the issues in Admin
+    `BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)`,
+    `PR_URL=$(gh pr list --head "$BRANCH" --json url --jq '.[0].url' 2>/dev/null || echo "")`,
+    `curl -s -X POST http://localhost:7702/session-done \\`,
+    `  -H 'Content-Type: application/json' \\`,
+    `  -d "{\\"issueIds\\": ${safeIds}, \\"prUrl\\": \\"$PR_URL\\"}" > /dev/null 2>&1 || true`,
     `rm -f '${safePpt}' '${safeSh}'`,
-  ].join('\n') + '\n'
-  )
+  ].join('\n') + '\n')
   fs.chmodSync(shPath, '755')
 
   const appleScript = `
