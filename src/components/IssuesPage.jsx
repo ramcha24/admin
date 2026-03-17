@@ -1,5 +1,71 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Bug, Sparkles, Play, Check, Trash2, ChevronDown, ChevronRight, RefreshCw, X, Pencil } from 'lucide-react'
+
+// ─── Multi-select tool dropdown ───────────────────────────────────────────────
+
+function ToolDropdown({ tools, selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef()
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = (id) =>
+    onChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id])
+
+  const label = selected.length === 0
+    ? 'All tools'
+    : selected.length === 1
+      ? (tools.find(t => t.id === selected[0])?.name ?? selected[0])
+      : `${selected.length} tools`
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+          open || selected.length > 0
+            ? 'border-primary/40 bg-primary/5 text-primary'
+            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+        }`}
+      >
+        {label}
+        {selected.length > 0 && (
+          <span className="min-w-[16px] h-[16px] inline-flex items-center justify-center rounded-full bg-primary text-white text-[10px] font-bold px-1">
+            {selected.length}
+          </span>
+        )}
+        <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[160px] py-1">
+          <div className="flex gap-2 px-3 py-1.5 border-b border-gray-50">
+            <button onClick={() => onChange(tools.map(t => t.id))} className="text-[11px] text-indigo-500 hover:text-indigo-700 font-medium">All</button>
+            <span className="text-gray-200">·</span>
+            <button onClick={() => onChange([])} className="text-[11px] text-gray-400 hover:text-gray-600">Clear</button>
+          </div>
+          {tools.map(tool => {
+            const checked = selected.includes(tool.id)
+            return (
+              <button key={tool.id} onClick={() => toggle(tool.id)}
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left">
+                <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-primary border-primary' : 'border-gray-300'}`}>
+                  {checked && <Check size={10} className="text-white" />}
+                </span>
+                <span className="text-sm">{tool.icon}</span>
+                <span className="text-xs text-gray-700 font-medium">{tool.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const TYPE_META = {
   bug:     { label: 'Bug',     icon: Bug,      bg: 'bg-red-50',     text: 'text-red-600',    border: 'border-red-200'    },
@@ -210,7 +276,7 @@ export default function IssuesPage({ onCountChange }) {
   const [issues,   setIssues]   = useState([])
   const [tools,    setTools]    = useState([])
   const [loading,  setLoading]  = useState(true)
-  const [toolFilter, setToolFilter] = useState('all')
+  const [toolFilter, setToolFilter] = useState([]) // empty = all tools
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('open')
   const [adding,   setAdding]   = useState(false)
@@ -256,7 +322,7 @@ export default function IssuesPage({ onCountChange }) {
   }
 
   const filtered = issues.filter(i => {
-    if (toolFilter !== 'all' && i.tool_id !== toolFilter) return false
+    if (toolFilter.length > 0 && !toolFilter.includes(i.tool_id)) return false
     if (typeFilter !== 'all' && i.type !== typeFilter) return false
     if (statusFilter !== 'all' && i.status !== statusFilter) return false
     return true
@@ -316,23 +382,8 @@ export default function IssuesPage({ onCountChange }) {
 
         <div className="w-px bg-gray-200 mx-1" />
 
-        {/* Tool */}
-        <div className="flex gap-1 flex-wrap">
-          <button onClick={() => setToolFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              toolFilter === 'all' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}>
-            All tools
-          </button>
-          {tools.map(t => (
-            <button key={t.id} onClick={() => setToolFilter(t.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                toolFilter === t.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}>
-              {t.icon} {t.name}
-            </button>
-          ))}
-        </div>
+        {/* Tool dropdown */}
+        <ToolDropdown tools={tools} selected={toolFilter} onChange={setToolFilter} />
       </div>
 
       {/* Quick-add form */}

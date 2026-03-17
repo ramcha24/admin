@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { RefreshCw, Plus, X, Check } from 'lucide-react'
 import ToolCard from './ToolCard'
+import ToolDetail from './ToolDetail'
 
 const PHASES = ['planning', 'building', 'stable', 'archived']
 const PHASE_LABELS = { planning: 'Planning', building: 'Building', stable: 'Stable', archived: 'Archived' }
@@ -130,13 +131,14 @@ function EditDevModal({ tool, onSave, onClose }) {
 // ─── Tool grid ────────────────────────────────────────────────────────────────
 
 export default function ToolGrid({ onNewTool }) {
-  const [tools,       setTools]       = useState([])
-  const [status,      setStatus]      = useState({})
-  const [loading,     setLoading]     = useState(true)
-  const [error,       setError]       = useState(null)
-  const [filter,      setFilter]      = useState('all')
-  const [editing,     setEditing]     = useState(null)
-  const [issueCounts, setIssueCounts] = useState({}) // { toolId: { bug: N, feature: N } }
+  const [tools,        setTools]        = useState([])
+  const [status,       setStatus]       = useState({})
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState(null)
+  const [filter,       setFilter]       = useState('all')
+  const [editing,      setEditing]      = useState(null)
+  const [selectedTool, setSelectedTool] = useState(null)
+  const [issueCounts,  setIssueCounts]  = useState({}) // { toolId: { bug: N, feature: N } }
 
   const loadIssueCounts = useCallback(async () => {
     try {
@@ -227,6 +229,22 @@ export default function ToolGrid({ onNewTool }) {
     )
   }
 
+  // ── Tool detail page ──────────────────────────────────────────────────────
+  if (selectedTool) {
+    const live = tools.find(t => t.id === selectedTool.id) ?? selectedTool
+    return (
+      <ToolDetail
+        tool={live}
+        status={status[live.id] ?? 'stopped'}
+        onBack={() => setSelectedTool(null)}
+        onLaunch={() => handleLaunch(live.id)}
+        onStop={() => handleStop(live.id)}
+        onResume={handleResume}
+        onEdit={t => { setSelectedTool(null); setEditing(t) }}
+      />
+    )
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       {editing && (
@@ -299,6 +317,7 @@ export default function ToolGrid({ onNewTool }) {
               onStop={() => handleStop(tool.id)}
               onResume={handleResume}
               onEdit={setEditing}
+              onSelect={setSelectedTool}
               issueCounts={issueCounts[tool.id] ?? {}}
               onIssueAdded={loadIssueCounts}
             />

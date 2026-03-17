@@ -83,7 +83,15 @@ function QuickAddPopover({ toolId, type, onSave, onClose }) {
   )
 }
 
-export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onResume, issueCounts, onIssueAdded }) {
+function truncateSummary(text, maxLen = 100) {
+  if (!text) return null
+  // Try to end at the first sentence boundary
+  const dot = text.indexOf('.')
+  const short = dot > 0 && dot < maxLen ? text.slice(0, dot + 1) : text.slice(0, maxLen)
+  return short.length < text.length ? short : text
+}
+
+export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onResume, onSelect, issueCounts, onIssueAdded }) {
   const [stepsOpen, setStepsOpen] = useState(false)
   const [addingType, setAddingType] = useState(null) // 'bug' | 'feature' | null
   const isRunning = status === 'running'
@@ -144,10 +152,17 @@ export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onRes
           </button>
         </div>
 
-        {/* Summary */}
-        <p className="text-sm text-gray-500 leading-relaxed">
-          {tool.dev_summary || tool.description}
-        </p>
+        {/* Summary — truncated; click opens ToolDetail */}
+        <button
+          onClick={() => onSelect?.(tool)}
+          className="text-left text-sm text-gray-500 leading-relaxed hover:text-gray-700 transition-colors"
+          title="Open tool detail"
+        >
+          {truncateSummary(tool.dev_summary) || tool.description}
+          {tool.dev_summary && tool.dev_summary.length > 100 && (
+            <span className="text-primary/70 ml-1 text-xs">more →</span>
+          )}
+        </button>
 
         {/* Next steps */}
         {nextSteps.length > 0 && (
