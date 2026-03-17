@@ -530,10 +530,153 @@ ipcMain.handle('events:poll', (_, toolId) => {
   }))
 })
 
+// ─── LLM (routes to Claude or Ollama based on settings) ──────────────────────
+
+async function llmComplete(messages, { systemPrompt, maxTokens = 1024 } = {}) {
+  const db = getDb()
+  const provider  = db.prepare("SELECT value FROM settings WHERE key='llm_provider'").get()?.value ?? 'claude'
+  const model     = db.prepare("SELECT value FROM settings WHERE key='llm_model'").get()?.value
+  const apiKey    = db.prepare("SELECT value FROM settings WHERE key='anthropic_api_key'").get()?.value
+  const ollamaUrl = db.prepare("SELECT value FROM settings WHERE key='ollama_base_url'").get()?.value ?? 'http://localhost:11434'
+  const ollamaModel = db.prepare("SELECT value FROM settings WHERE key='ollama_model'").get()?.value ?? 'llama3'
+
+  if (provider === 'ollama') {
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model || ollamaModel,
+        messages: systemPrompt
+          ? [{ role: 'system', content: systemPrompt }, ...messages]
+          : messages,
+        stream: false,
+      }),
+    })
+    if (!response.ok) throw new Error(`Ollama error: ${response.statusText}`)
+    const data = await response.json()
+    return data.message?.content ?? ''
+  }
+
+  // Default: Claude
+  if (!apiKey) throw new Error('No Anthropic API key configured. Add it in Settings.')
+  const Anthropic = require('@anthropic-ai/sdk')
+  const client = new Anthropic.default({ apiKey })
+  const result = await client.messages.create({
+    model: model || 'claude-haiku-4-5-20251001',
+    max_tokens: maxTokens,
+    ...(systemPrompt ? { system: systemPrompt } : {}),
+    messages,
+  })
+  return result.content[0].text
+}
+
+ipcMain.handle('llm:complete', async (_, { messages, systemPrompt, maxTokens }) => {
+  try {
+    const text = await llmComplete(messages, { systemPrompt, maxTokens })
+    return { ok: true, text }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+// ─── Ideas ────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('ideas:getAll', () => {
+  const rows = getDb().prepare(
+    'SELECT * FROM ideas ORDER BY created_at DESC'
+  ).all()
+  return rows.map(r => ({ ...r, tags: JSON.parse(r.tags) }))
+})
+
+ipcMain.handle('ideas:save', (_, data) => {
+  const { title, summary, raw_text, tags = [], source = '' } = data
+  const result = getDb().prepare(`
+    INSERT INTO ideas (title, summary, raw_text, tags, source)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(title, summary, raw_text, JSON.stringify(tags), source)
+  return { ok: true, id: result.lastInsertRowid }
+})
+
+ipcMain.handle('ideas:update', (_, { id, title, summary, tags }) => {
+  getDb().prepare(`
+    UPDATE ideas SET title=?, summary=?, tags=?, updated_at=datetime('now') WHERE id=?
+  `).run(title, summary, JSON.stringify(tags ?? []), id)
+  return { ok: true }
+})
+
+ipcMain.handle('ideas:delete', (_, id) => {
+  getDb().prepare('DELETE FROM ideas WHERE id=?').run(id)
+  return { ok: true }
+})
+
+// Polish raw text into a structured idea using the configured LLM
+ipcMain.handle('ideas:polish', async (_, rawText) => {
+  const SYSTEM = `You are an idea curator. The user will give you a rough note or excerpt. Your job is to extract and structure the core idea into JSON with these fields:
+- title: short, punchy title (5-8 words max)
+- summary: 2-4 sentences — the idea clearly stated, why it matters, any key constraints
+- tags: array of 2-5 lowercase tag strings
+
+Respond with only valid JSON, no markdown fences.`
+
+  try {
+    const text = await llmComplete(
+      [{ role: 'user', content: rawText }],
+      { systemPrompt: SYSTEM, maxTokens: 512 }
+    )
+    const parsed = JSON.parse(text)
+    return { ok: true, ...parsed }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+// Extract multiple ideas from a long conversation file or dump
+ipcMain.handle('ideas:extract', async (_, rawText) => {
+  const SYSTEM = `You are an idea extractor. The user will give you a long text (conversation log, notes dump, etc). Find every distinct idea, suggestion, or earmarked thought in it. For each, output a JSON object with:
+- title: short title
+- summary: 2-3 sentences
+- tags: array of 2-4 lowercase tags
+- excerpt: the original sentence(s) that triggered this idea (max 100 chars)
+
+Respond with a JSON array of these objects, no markdown fences.`
+
+  try {
+    const text = await llmComplete(
+      [{ role: 'user', content: rawText.slice(0, 12000) }], // cap to ~12k chars
+      { systemPrompt: SYSTEM, maxTokens: 2048 }
+    )
+    const parsed = JSON.parse(text)
+    return { ok: true, ideas: parsed }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+// Open Claude Code in plan mode for a stored idea
+ipcMain.handle('ideas:plan', async (_, { id, title, summary }) => {
+  const prompt = `Plan a new tool for this idea:\n\n**${title}**\n\n${summary}`
+  const script = `
+    tell application "Terminal"
+      activate
+      do script "cd '${ADMIN_PARENT}' && claude --plan '${prompt.replace(/'/g, "'\\''")}'"
+    end tell
+  `
+  return new Promise((resolve) => {
+    execFile('osascript', ['-e', script], (err) => {
+      resolve({ ok: !err, error: err?.message })
+    })
+  })
+})
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 ipcMain.handle('settings:get', (_, key) => {
   return getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value ?? null
+})
+
+ipcMain.handle('settings:getAll', () => {
+  const rows = getDb().prepare('SELECT key, value FROM settings').all()
+  return Object.fromEntries(rows.map(r => [r.key, r.value]))
 })
 
 ipcMain.handle('settings:set', (_, { key, value }) => {

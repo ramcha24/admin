@@ -1,10 +1,12 @@
 import React from 'react'
-import { LayoutGrid, Plus, GitBranch } from 'lucide-react'
+import { LayoutGrid, Lightbulb, Plus, GitBranch, Settings } from 'lucide-react'
 
 const NAV = [
-  { id: 'tools',    label: 'Tools',    icon: LayoutGrid },
-  { id: 'new-tool', label: 'New Tool', icon: Plus },
-  { id: 'workflows',label: 'Workflows',icon: GitBranch, disabled: true },
+  { id: 'tools',     label: 'Tools',     icon: LayoutGrid },
+  { id: 'ideas',     label: 'Ideas',     icon: Lightbulb },
+  { id: 'new',       label: 'New',       icon: Plus },
+  { id: 'workflows', label: 'Workflows', icon: GitBranch, disabled: true },
+  { id: 'settings',  label: 'Settings',  icon: Settings },
 ]
 
 export default function Sidebar({ page, setPage }) {
@@ -39,7 +41,9 @@ export default function Sidebar({ page, setPage }) {
             >
               <Icon size={15} />
               {label}
-              {disabled && <span className="ml-auto text-[10px] text-white/20 uppercase tracking-wider">Soon</span>}
+              {disabled && (
+                <span className="ml-auto text-[10px] text-white/20 uppercase tracking-wider">Soon</span>
+              )}
             </button>
           )
         })}

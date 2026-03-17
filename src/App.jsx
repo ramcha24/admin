@@ -1,22 +1,38 @@
 import React, { useState } from 'react'
 import Sidebar from './components/Sidebar'
 import ToolGrid from './components/ToolGrid'
-import NewToolFlow from './components/NewToolFlow'
+import IdeasPage from './components/IdeasPage'
+import NewFlow from './components/NewFlow'
+import SettingsPage from './components/SettingsPage'
 
 export default function App() {
-  const [page, setPage] = useState('tools')
+  const [page, setPage]       = useState('tools')
+  const [newMode, setNewMode] = useState(null)  // 'store' | 'plan' | null
+
+  const goNew = (mode = null) => {
+    setNewMode(mode)
+    setPage('new')
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
-      <Sidebar page={page} setPage={setPage} />
+      <Sidebar page={page} setPage={(p) => { setNewMode(null); setPage(p) }} />
 
       <main className="flex-1 flex flex-col min-w-0 titlebar-safe">
         {page === 'tools' && (
-          <ToolGrid onNewTool={() => setPage('new-tool')} />
+          <ToolGrid onNewTool={() => goNew('plan')} />
         )}
-        {page === 'new-tool' && (
-          <NewToolFlow onBack={() => setPage('tools')} />
+        {page === 'ideas' && (
+          <IdeasPage onNewIdea={() => goNew('store')} />
         )}
+        {page === 'new' && (
+          <NewFlow
+            defaultMode={newMode}
+            onBack={() => setPage(newMode === 'store' ? 'ideas' : 'tools')}
+            onIdeaSaved={() => setPage('ideas')}
+          />
+        )}
+        {page === 'settings' && <SettingsPage />}
       </main>
     </div>
   )
