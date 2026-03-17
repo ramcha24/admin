@@ -713,6 +713,31 @@ ipcMain.handle('village:updateMember', (_, { id, email, tagId }) => {
   return { ok: true }
 })
 
+ipcMain.handle('village:getMemberAccess', (_, memberId) => {
+  const db = getDb()
+  const access = db.prepare('SELECT tool_id, level FROM village_access WHERE member_id=?').all(memberId)
+  const notif  = db.prepare('SELECT frequency FROM village_notifications WHERE member_id=?').get(memberId)
+  return {
+    access: Object.fromEntries(access.map(r => [r.tool_id, r.level])),
+    frequency: notif?.frequency ?? 'daily',
+  }
+})
+
+ipcMain.handle('village:setNotificationFrequency', (_, { memberId, frequency }) => {
+  getDb().prepare(`
+    INSERT OR REPLACE INTO village_notifications (member_id, frequency)
+    VALUES (?, ?)
+  `).run(memberId, frequency)
+  return { ok: true }
+})
+
+ipcMain.handle('village:getPreviewFeed', (_, memberId) => {
+  const { getMemberFeed } = require('./village')
+  const feed = getMemberFeed(memberId)
+  if (!feed) return null
+  return feed
+})
+
 ipcMain.handle('village:setAccess', (_, { memberId, toolId, level }) => {
   getDb().prepare(`
     INSERT OR REPLACE INTO village_access (member_id, tool_id, level)
