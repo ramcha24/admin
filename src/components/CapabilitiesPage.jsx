@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { RefreshCw, Copy, Check, ChevronDown, ChevronRight, Zap } from 'lucide-react'
+import { RefreshCw, Copy, Check, ChevronDown, ChevronRight, Zap, Play } from 'lucide-react'
 
 // ─── Multi-select tool dropdown ───────────────────────────────────────────────
 
@@ -141,6 +141,98 @@ ${payloadStr}
 })`
 }
 
+function TryItPanel({ cap }) {
+  const fields = Object.entries(cap.input_schema)
+  const [values, setValues] = useState(() => {
+    const init = {}
+    for (const [field] of fields) init[field] = ''
+    return init
+  })
+  const [calling, setCalling] = useState(false)
+  const [result, setResult]   = useState(null) // { ok, data } | { ok: false, error }
+
+  const call = async () => {
+    setCalling(true)
+    setResult(null)
+    try {
+      const payload = {}
+      for (const [field, spec] of fields) {
+        const s = typeof spec === 'string' ? { type: spec } : spec
+        const raw = values[field]
+        if (s.type === 'number') payload[field] = raw === '' ? undefined : Number(raw)
+        else if (s.type === 'boolean') payload[field] = raw === 'true' || raw === '1'
+        else payload[field] = raw
+      }
+      const data = await window.api.callCapability(cap.service_id, payload)
+      setResult({ ok: true, data })
+    } catch (err) {
+      setResult({ ok: false, error: String(err) })
+    } finally {
+      setCalling(false)
+    }
+  }
+
+  if (fields.length === 0) {
+    return (
+      <div>
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Try it</p>
+        <button
+          onClick={call}
+          disabled={calling}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+        >
+          {calling ? <RefreshCw size={11} className="animate-spin" /> : <Play size={11} />}
+          Call
+        </button>
+        {result && (
+          <pre className={`mt-2 text-xs font-mono rounded-lg px-3 py-3 overflow-x-auto whitespace-pre-wrap ${result.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+            {result.ok ? JSON.stringify(result.data, null, 2) : result.error}
+          </pre>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Try it</p>
+      <div className="space-y-2 mb-3">
+        {fields.map(([field, spec]) => {
+          const s = typeof spec === 'string' ? { type: spec } : spec
+          return (
+            <div key={field} className="flex items-center gap-3">
+              <label className="text-xs font-mono text-gray-700 w-28 shrink-0">
+                {field}
+                {s.required !== false && <span className="text-amber-500 ml-0.5">*</span>}
+              </label>
+              <input
+                type={s.type === 'number' ? 'number' : 'text'}
+                value={values[field]}
+                onChange={e => setValues(v => ({ ...v, [field]: e.target.value }))}
+                placeholder={s.type ?? 'string'}
+                className="flex-1 text-xs font-mono border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-400 bg-white"
+              />
+            </div>
+          )
+        })}
+      </div>
+      <button
+        onClick={call}
+        disabled={calling}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+      >
+        {calling ? <RefreshCw size={11} className="animate-spin" /> : <Play size={11} />}
+        {calling ? 'Calling…' : 'Call'}
+      </button>
+      {result && (
+        <pre className={`mt-2 text-xs font-mono rounded-lg px-3 py-3 overflow-x-auto whitespace-pre-wrap ${result.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+          {result.ok ? JSON.stringify(result.data, null, 2) : result.error}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 function CapabilityCard({ cap }) {
   const [open, setOpen] = useState(false)
   const snippet = buildSnippet(cap)
@@ -202,6 +294,11 @@ function CapabilityCard({ cap }) {
             <pre className="text-xs text-gray-700 font-mono bg-gray-50 rounded-lg px-3 py-3 overflow-x-auto whitespace-pre">
               {snippet}
             </pre>
+          </div>
+
+          {/* Try it panel */}
+          <div className="border-t border-gray-100 pt-4">
+            <TryItPanel cap={cap} />
           </div>
         </div>
       )}

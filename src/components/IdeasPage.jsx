@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import {
   Lightbulb, Trash2, Terminal, RefreshCw, Plus, Search, X,
-  Pencil, Check, ArrowLeft, Loader, Upload, Merge, Paperclip, ExternalLink,
+  Pencil, Check, ArrowLeft, Loader, Upload, Merge, Paperclip, ExternalLink, Bug,
 } from 'lucide-react'
 
 // ─── Edit modal ───────────────────────────────────────────────────────────────
@@ -83,6 +83,85 @@ function EditModal({ idea, onSave, onClose }) {
   )
 }
 
+// ─── Create Issue modal ───────────────────────────────────────────────────────
+
+function CreateIssueModal({ idea, tools, onClose }) {
+  const [toolId,   setToolId]   = useState(tools[0]?.id ?? '')
+  const [type,     setType]     = useState('feature')
+  const [title,    setTitle]    = useState(idea.title)
+  const [desc,     setDesc]     = useState(idea.summary)
+  const [saving,   setSaving]   = useState(false)
+  const [saved,    setSaved]    = useState(false)
+
+  const handleSave = async () => {
+    if (!toolId || !title.trim()) return
+    setSaving(true)
+    await window.api.saveIssue({ tool_id: toolId, type, title: title.trim(), description: desc.trim() })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(onClose, 900)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 flex flex-col gap-4"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Bug size={15} className="text-orange-500" /> Create Issue from Idea
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Tool</label>
+            <select value={toolId} onChange={e => setToolId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+              {tools.map(t => <option key={t.id} value={t.id}>{t.icon} {t.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+            <select value={type} onChange={e => setType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+              <option value="feature">Feature</option>
+              <option value="bug">Bug</option>
+              <option value="improvement">Improvement</option>
+              <option value="question">Question</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+          <input value={title} onChange={e => setTitle(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+          <button onClick={handleSave} disabled={saving || saved || !toolId || !title.trim()}
+            className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors">
+            {saved
+              ? <><Check size={13} className="text-green-300" /> Created!</>
+              : saving
+                ? <><RefreshCw size={13} className="animate-spin" /> Creating…</>
+                : <><Bug size={13} /> Create Issue</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Idea card ────────────────────────────────────────────────────────────────
 
 function truncateSummary(text, maxLen = 100) {
@@ -92,7 +171,7 @@ function truncateSummary(text, maxLen = 100) {
   return short.length < text.length ? short : text
 }
 
-function IdeaCard({ idea, onPlan, onDelete, onEdit, planning }) {
+function IdeaCard({ idea, onPlan, onDelete, onEdit, onCreateIssue, planning }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
@@ -112,6 +191,9 @@ function IdeaCard({ idea, onPlan, onDelete, onEdit, planning }) {
             </>
           ) : (
             <>
+              <button onClick={() => onCreateIssue(idea)} className="text-gray-300 hover:text-orange-400 transition-colors mt-0.5" title="Create issue from idea">
+                <Bug size={13} />
+              </button>
               <button onClick={() => onEdit(idea)} className="text-gray-300 hover:text-indigo-400 transition-colors mt-0.5" title="Edit idea">
                 <Pencil size={13} />
               </button>
@@ -451,16 +533,23 @@ function StoreFlow({ onBack, onSaved }) {
 // ─── Ideas page ───────────────────────────────────────────────────────────────
 
 export default function IdeasPage() {
-  const [ideas,     setIdeas]     = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [planning,  setPlanning]  = useState(null)
-  const [search,    setSearch]    = useState('')
-  const [editing,   setEditing]   = useState(null)
-  const [storing,   setStoring]   = useState(false)
+  const [ideas,        setIdeas]        = useState([])
+  const [tools,        setTools]        = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [planning,     setPlanning]     = useState(null)
+  const [search,       setSearch]       = useState('')
+  const [editing,      setEditing]      = useState(null)
+  const [storing,      setStoring]      = useState(false)
+  const [issuingIdea,  setIssuingIdea]  = useState(null)
 
   const load = async () => {
     setLoading(true)
-    setIdeas(await window.api.getIdeas())
+    const [allIdeas, discovered] = await Promise.all([
+      window.api.getIdeas(),
+      window.api.discoverTools(),
+    ])
+    setIdeas(allIdeas)
+    setTools(discovered)
     setLoading(false)
   }
 
@@ -519,6 +608,9 @@ export default function IdeasPage() {
       {editing && (
         <EditModal idea={editing} onSave={handleSaveEdit} onClose={() => setEditing(null)} />
       )}
+      {issuingIdea && tools.length > 0 && (
+        <CreateIssueModal idea={issuingIdea} tools={tools} onClose={() => setIssuingIdea(null)} />
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
@@ -575,7 +667,8 @@ export default function IdeasPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map(idea => (
             <IdeaCard key={idea.id} idea={idea} planning={planning}
-              onPlan={handlePlan} onDelete={handleDelete} onEdit={setEditing} />
+              onPlan={handlePlan} onDelete={handleDelete} onEdit={setEditing}
+              onCreateIssue={setIssuingIdea} />
           ))}
         </div>
       )}
