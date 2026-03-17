@@ -148,6 +148,18 @@ ipcMain.handle('tools:discover', () => {
       }
     }
 
+    // Sync dev-status.json written by the post-commit hook
+    const devStatusPath = path.join(dirPath, 'dev-status.json')
+    if (fs.existsSync(devStatusPath)) {
+      try {
+        const devStatus = JSON.parse(fs.readFileSync(devStatusPath, 'utf8'))
+        if (devStatus.dev_summary) {
+          db.prepare('UPDATE tool_registry SET dev_summary=?, next_steps=? WHERE id=?')
+            .run(devStatus.dev_summary, JSON.stringify(devStatus.next_steps ?? []), manifest.id)
+        }
+      } catch {}
+    }
+
     const row = db.prepare('SELECT * FROM tool_registry WHERE id=?').get(manifest.id)
     const autoTag = detectLatestTag(dirPath)
 
