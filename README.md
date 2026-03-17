@@ -126,16 +126,16 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Admin v1.0.5 has implemented a release script (`release.sh`) for automated packaging and version bumping, including L2 compliance checks and Supabase sync. It enforces a feature-branch workflow with a pre-push hook and stable release publishing flow, and adds app icons and EADDRINUSE error handling for the village server. Tool discovery and invocation via a capabilities page with 'Try it' panel are also operational.
+Recent commits have added a release script (`release.sh`) for L2 compliance checks and automated tool publishing, along with an app icon and wire into the Electron builder config.  A feature-branch workflow is enforced via a pre-push hook and a guard in the tool's Electron app. The latest v1.0.5 release includes these changes, improving the release process and adding a layer of control for tool development.
 
 **Next steps:**
-- Implement detailed logging and monitoring within the `electron/main.js` to aid debugging and identify performance bottlenecks.
-- Expand the Ideas page's file ingestion support to include more document types (e.g., more complex PDF parsing).
-- Develop a user interface for managing the village members' access levels (follower/reader/commenter/collaborator) within the Admin app.
-- Add unit tests for key modules, particularly the `electron/village.js` and `electron/supabase.js` code to ensure stability and prevent regressions.
+- Implement the 'Try it' panel on the Capabilities page to allow users to directly test service calls from within the Admin interface.
+- Refactor the `electron/preload.js` file to handle the pre-push hook and enforce the feature branch workflow more robustly, addressing potential bypasses.
+- Implement a more comprehensive logging mechanism within the Admin app to aid in debugging issues with service calls and workflow execution.
 
 **Recent commits:**
-- `a28744e` feat: add release.sh to L2 compliance check and update TOOL_PROTOCOL.md
+- `0b80023` chore: update auto-generated files
+- `e6670fb` feat: add release.sh to L2 compliance check and update TOOL_PROTOCOL.md (#9)
 - `33308eb` chore: release v1.0.5
 - `72bcf2e` Merge pull request #8 from ramcha24/feature/release-script-auto-push
 - `f23aa59` chore: update auto-generated files
@@ -144,5 +144,4 @@ Admin v1.0.5 has implemented a release script (`release.sh`) for automated packa
 - `fa2d65d` Merge pull request #7 from ramcha24/feature/enforce-branch-workflow
 - `5661c6c` release.sh: use --no-verify for version bump commits (legitimately on main)
 - `62aa8c1` chore: update auto-generated files
-- `10c2065` Enforce feature-branch workflow: pre-push hook + PreToolUse guard
 <!-- STATUS:END -->
