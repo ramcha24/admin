@@ -75,12 +75,96 @@ function createSchema() {
     );
   `)
 
+    -- Village: identity (singleton)
+    CREATE TABLE IF NOT EXISTS village_identity (
+      id           INTEGER PRIMARY KEY CHECK (id = 1),
+      username     TEXT NOT NULL DEFAULT 'ram',
+      display_name TEXT NOT NULL DEFAULT 'Ram',
+      platform_url TEXT NOT NULL DEFAULT 'http://localhost:7700',
+      avatar_emoji TEXT NOT NULL DEFAULT '🌿'
+    );
+
+    -- Village: relationship tags
+    CREATE TABLE IF NOT EXISTS village_tags (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      icon        TEXT DEFAULT '🏷️',
+      color       TEXT DEFAULT '#6366f1',
+      description TEXT DEFAULT ''
+    );
+
+    -- Village: default tool access per tag
+    CREATE TABLE IF NOT EXISTS village_tag_defaults (
+      tag_id  TEXT NOT NULL REFERENCES village_tags(id) ON DELETE CASCADE,
+      tool_id TEXT NOT NULL,
+      level   TEXT NOT NULL,
+      PRIMARY KEY (tag_id, tool_id)
+    );
+
+    -- Village: members
+    CREATE TABLE IF NOT EXISTS village_members (
+      id           TEXT PRIMARY KEY,
+      name         TEXT NOT NULL,
+      email        TEXT NOT NULL DEFAULT '',
+      village_handle TEXT DEFAULT '',
+      avatar_emoji TEXT DEFAULT '👤',
+      tag_id       TEXT REFERENCES village_tags(id),
+      notes        TEXT DEFAULT '',
+      joined_at    TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Village: per-person access overrides (NULL level = explicit revoke)
+    CREATE TABLE IF NOT EXISTS village_access (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      member_id  TEXT NOT NULL REFERENCES village_members(id) ON DELETE CASCADE,
+      tool_id    TEXT NOT NULL,
+      level      TEXT,
+      granted_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(member_id, tool_id)
+    );
+
+    -- Village: activity feed (source of truth, local)
+    CREATE TABLE IF NOT EXISTS village_activity (
+      id            TEXT PRIMARY KEY,
+      source_tool   TEXT NOT NULL,
+      activity_type TEXT NOT NULL,
+      payload       TEXT NOT NULL DEFAULT '{}',
+      created_at    TEXT DEFAULT (datetime('now')),
+      synced_at     TEXT
+    );
+
+    -- Village: interactions from members (comments, reactions, collaborator actions)
+    CREATE TABLE IF NOT EXISTS village_interactions (
+      id          TEXT PRIMARY KEY,
+      activity_id TEXT NOT NULL,
+      member_id   TEXT NOT NULL,
+      member_name TEXT NOT NULL,
+      type        TEXT NOT NULL,
+      payload     TEXT NOT NULL DEFAULT '{}',
+      created_at  TEXT DEFAULT (datetime('now')),
+      read_at     TEXT
+    );
+
+    -- Village: notification preferences
+    CREATE TABLE IF NOT EXISTS village_notifications (
+      member_id    TEXT PRIMARY KEY REFERENCES village_members(id) ON DELETE CASCADE,
+      frequency    TEXT DEFAULT 'daily',
+      last_sent_at TEXT
+    );
+  `)
+
   // Seed default LLM settings if not present
   const setDefault = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
   setDefault.run('llm_provider', 'claude')
   setDefault.run('llm_model', 'claude-haiku-4-5-20251001')
   setDefault.run('ollama_base_url', 'http://localhost:11434')
   setDefault.run('ollama_model', 'llama3')
+
+  // Seed default village identity
+  db.prepare(`
+    INSERT OR IGNORE INTO village_identity (id, username, display_name, avatar_emoji)
+    VALUES (1, 'ram', 'Ram', '🌿')
+  `).run()
 }
 
 function getDb() { return db }

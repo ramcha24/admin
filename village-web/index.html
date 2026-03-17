@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Village</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #faf9f6;
+      --bg-card:   #ffffff;
+      --border:    #ede9e3;
+      --text:      #1c1917;
+      --text-soft: #78716c;
+      --text-hint: #a8a29e;
+      --indigo:    #6366f1;
+      --indigo-lt: #eef2ff;
+      --green:     #16a34a;
+      --green-lt:  #f0fdf4;
+      --amber:     #d97706;
+      --amber-lt:  #fffbeb;
+      --radius:    14px;
+      --shadow:    0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .page { max-width: 520px; margin: 0 auto; padding: 0 16px 80px; }
+
+    /* ── Header ── */
+    .header {
+      padding: 28px 0 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .header-inner { display: flex; align-items: center; gap: 12px; }
+    .header-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--indigo-lt);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .header-name { font-size: 17px; font-weight: 600; color: var(--text); }
+    .header-sub  { font-size: 13px; color: var(--text-hint); margin-top: 2px; }
+    .header-handle {
+      margin-left: auto;
+      font-size: 12px; color: var(--text-hint);
+      background: var(--border); padding: 3px 8px; border-radius: 20px;
+    }
+
+    /* ── Streak card ── */
+    .streak-card {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      color: white;
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .streak-fire { font-size: 36px; line-height: 1; }
+    .streak-count { font-size: 32px; font-weight: 700; line-height: 1; }
+    .streak-label { font-size: 13px; opacity: .8; margin-top: 3px; }
+    .streak-detail { font-size: 13px; opacity: .75; margin-left: auto; text-align: right; line-height: 1.5; }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--text-hint);
+      margin-bottom: 10px; margin-top: 28px;
+    }
+
+    /* ── Activity card ── */
+    .activity-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+      transition: box-shadow .15s;
+    }
+    .activity-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+
+    .activity-meta {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .activity-tool-badge {
+      font-size: 11px; font-weight: 600; padding: 2px 8px;
+      border-radius: 20px; background: var(--indigo-lt); color: var(--indigo);
+    }
+    .activity-time { font-size: 12px; color: var(--text-hint); margin-left: auto; }
+
+    .activity-text {
+      font-size: 15px; color: var(--text); line-height: 1.5;
+    }
+
+    .activity-detail {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 13px; color: var(--text-soft); line-height: 1.55;
+    }
+    .activity-detail .detail-row { display: flex; gap: 6px; margin-bottom: 4px; }
+    .activity-detail .detail-label { color: var(--text-hint); min-width: 60px; }
+
+    .activity-notes {
+      margin-top: 8px;
+      padding: 10px 12px;
+      background: var(--bg);
+      border-radius: 8px;
+      font-size: 13px; color: var(--text-soft); line-height: 1.6;
+      font-style: italic;
+    }
+
+    /* ── Interactions ── */
+    .interactions { margin-top: 12px; }
+    .interaction-item {
+      display: flex; gap: 10px; margin-bottom: 8px;
+    }
+    .interaction-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--border); display: flex; align-items: center;
+      justify-content: center; font-size: 14px; flex-shrink: 0;
+    }
+    .interaction-bubble {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 8px 12px; flex: 1;
+      font-size: 13px; color: var(--text-soft); line-height: 1.5;
+    }
+    .interaction-who { font-weight: 600; color: var(--text); font-size: 12px; margin-bottom: 2px; }
+
+    /* ── Comment box ── */
+    .comment-box {
+      margin-top: 12px;
+      display: flex; gap: 8px; align-items: flex-end;
+    }
+    .comment-input {
+      flex: 1; border: 1px solid var(--border); border-radius: 10px;
+      padding: 8px 12px; font-size: 13px; font-family: inherit;
+      background: var(--bg); resize: none; color: var(--text);
+      outline: none; transition: border-color .15s;
+    }
+    .comment-input:focus { border-color: var(--indigo); }
+    .comment-btn {
+      background: var(--indigo); color: white; border: none;
+      border-radius: 8px; padding: 8px 14px; font-size: 13px;
+      font-weight: 600; cursor: pointer; transition: opacity .15s;
+      font-family: inherit;
+    }
+    .comment-btn:hover { opacity: .85; }
+    .comment-btn:disabled { opacity: .4; cursor: default; }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center; padding: 60px 20px;
+      color: var(--text-hint);
+    }
+    .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-title { font-size: 16px; font-weight: 600; color: var(--text-soft); margin-bottom: 6px; }
+
+    /* ── Loading ── */
+    .loading {
+      text-align: center; padding: 80px 20px; color: var(--text-hint);
+      font-size: 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 24px; height: 24px; border: 2px solid var(--border);
+      border-top-color: var(--indigo); border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    /* ── Error ── */
+    .error-msg {
+      background: #fff1f2; border: 1px solid #fecdd3; border-radius: var(--radius);
+      padding: 16px 18px; font-size: 14px; color: #be123c;
+      margin: 20px 0;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center; padding: 32px 0 0;
+      font-size: 12px; color: var(--text-hint);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div id="app"><div class="loading"><div class="spinner"></div>Loading your village feed…</div></div>
+  </div>
+
+  <script>
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    const memberId = new URLSearchParams(location.search).get('member') ?? 'test-villager'
+    const API = ''  // same origin
+
+    function timeAgo(iso) {
+      const d = new Date(iso)
+      const diff = (Date.now() - d.getTime()) / 1000
+      if (diff < 60)    return 'just now'
+      if (diff < 3600)  return Math.floor(diff/60) + 'm ago'
+      if (diff < 86400) return Math.floor(diff/3600) + 'h ago'
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+
+    function escHtml(s) {
+      if (!s) return ''
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────────
+    function renderStreakCard(items) {
+      const streak = items.find(i => i.type === 'streak_update')
+      if (!streak) return ''
+      const d = streak.detail
+      return `
+        <div class="streak-card">
+          <div class="streak-fire">🔥</div>
+          <div>
+            <div class="streak-count">${escHtml(String(d.streak_days ?? 0))}</div>
+            <div class="streak-label">day streak</div>
+          </div>
+          ${d.total_hours_this_week != null ? `
+          <div class="streak-detail">
+            <div>${escHtml(String(d.total_hours_this_week))}h</div>
+            <div>this week</div>
+          </div>` : ''}
+        </div>`
+    }
+
+    function renderDetail(item) {
+      const d = item.detail
+      if (!d || Object.keys(d).length === 0) return ''
+      const rows = []
+      if (d.course_title)     rows.push(['studying', escHtml(d.course_title)])
+      if (d.duration_minutes) rows.push(['duration', d.duration_minutes + ' min'])
+      const detailHtml = rows.map(([label, val]) => `
+        <div class="detail-row">
+          <span class="detail-label">${label}</span>
+          <span>${val}</span>
+        </div>`).join('')
+
+      const notesHtml = (item.level === 'commenter' || item.level === 'collaborator') && d.notes
+        ? `<div class="activity-notes">"${escHtml(d.notes)}"</div>`
+        : ''
+
+      return `<div class="activity-detail">${detailHtml}${notesHtml}</div>`
+    }
+
+    function renderInteractions(item) {
+      if (!item.interactions?.length) return ''
+      return `<div class="interactions">
+        ${item.interactions.map(i => `
+          <div class="interaction-item">
+            <div class="interaction-avatar">💬</div>
+            <div class="interaction-bubble">
+              <div class="interaction-who">${escHtml(i.member_name)}</div>
+              ${escHtml(i.payload?.body ?? '')}
+              ${i.payload?.link ? `<br/><a href="${escHtml(i.payload.link)}" target="_blank" style="color:var(--indigo);font-size:12px;">${escHtml(i.payload.link)}</a>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>`
+    }
+
+    function canComment(level) {
+      return level === 'commenter' || level === 'collaborator'
+    }
+
+    function renderCommentBox(item) {
+      if (!canComment(item.level)) return ''
+      return `
+        <div class="comment-box" id="cb-${escHtml(item.id)}">
+          <textarea class="comment-input" rows="1" placeholder="Leave a thought…"
+            oninput="autosize(this)"
+            id="ci-${escHtml(item.id)}"></textarea>
+          <button class="comment-btn" onclick="submitComment('${escHtml(item.id)}')">Send</button>
+        </div>`
+    }
+
+    function renderFeed(data) {
+      const { member, identity, items } = data
+
+      // Separate streak card from session feed
+      const sessions  = items.filter(i => i.type === 'session_logged')
+      const streakItem = items.find(i => i.type === 'streak_update')
+
+      const streakHtml = streakItem ? renderStreakCard(items) : ''
+
+      const sessionHtml = sessions.length === 0
+        ? `<div class="empty">
+             <div class="empty-icon">📖</div>
+             <div class="empty-title">No sessions yet</div>
+             <p>Activity will appear here when ${escHtml(identity?.display_name ?? 'they')} log study sessions in Grove.</p>
+           </div>`
+        : sessions.map(item => `
+            <div class="activity-card" id="card-${escHtml(item.id)}">
+              <div class="activity-meta">
+                <span class="activity-tool-badge">🌿 Grove</span>
+                <span class="activity-time">${timeAgo(item.created_at)}</span>
+              </div>
+              <div class="activity-text">${escHtml(item.rendered)}</div>
+              ${renderDetail(item)}
+              ${renderInteractions(item)}
+              ${renderCommentBox(item)}
+            </div>`).join('')
+
+      return `
+        <div class="header">
+          <div class="header-inner">
+            <div class="header-avatar">${escHtml(identity?.avatar_emoji ?? '🌿')}</div>
+            <div>
+              <div class="header-name">${escHtml(identity?.display_name ?? 'Village')}'s Village</div>
+              <div class="header-sub">You're viewing as ${escHtml(member.name)}</div>
+            </div>
+            <div class="header-handle">${escHtml(identity?.username ?? 'ram')}@village</div>
+          </div>
+        </div>
+
+        ${streakHtml}
+
+        <div class="section-label">Recent Activity</div>
+        ${sessionHtml}
+
+        <div class="footer">
+          <p>This is a private feed — only you can see this.</p>
+          <p style="margin-top:4px">Powered by Village · <a href="#" style="color:var(--indigo)">ram@village</a></p>
+        </div>
+      `
+    }
+
+    // ── Comment submission ────────────────────────────────────────────────────
+    function autosize(el) {
+      el.style.height = 'auto'
+      el.style.height = el.scrollHeight + 'px'
+    }
+
+    async function submitComment(activityId) {
+      const input = document.getElementById(`ci-${activityId}`)
+      const body  = input?.value?.trim()
+      if (!body) return
+
+      const btn = document.querySelector(`#cb-${activityId} .comment-btn`)
+      if (btn) { btn.disabled = true; btn.textContent = '…' }
+
+      try {
+        const res = await fetch(`${API}/api/interact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ activity_id: activityId, member_id: memberId, type: 'comment', payload: { body } })
+        })
+        if (res.ok) {
+          input.value = ''
+          if (btn) { btn.disabled = false; btn.textContent = 'Send' }
+          // Append comment optimistically
+          const card = document.getElementById(`card-${activityId}`)
+          const existing = card.querySelector('.interactions') || (() => {
+            const el = document.createElement('div')
+            el.className = 'interactions'
+            card.querySelector('.comment-box')?.before(el)
+            return el
+          })()
+          existing.insertAdjacentHTML('beforeend', `
+            <div class="interaction-item">
+              <div class="interaction-avatar">💬</div>
+              <div class="interaction-bubble">
+                <div class="interaction-who">You</div>
+                ${escHtml(body)}
+              </div>
+            </div>`)
+        }
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Send' }
+      }
+    }
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+    async function load() {
+      const app = document.getElementById('app')
+      try {
+        const res = await fetch(`${API}/api/feed?member=${memberId}`)
+        if (!res.ok) throw new Error(res.status === 404 ? 'Member not found' : 'Server error')
+        const data = await res.json()
+        app.innerHTML = renderFeed(data)
+      } catch (e) {
+        app.innerHTML = `
+          <div class="error-msg">
+            <strong>Couldn't load feed.</strong> ${escHtml(e.message)}<br/>
+            <small>Make sure Admin is running, then refresh.</small>
+          </div>`
+      }
+    }
+
+    load()
+  </script>
+</body>
+</html>

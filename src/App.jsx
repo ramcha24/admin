@@ -4,6 +4,7 @@ import ToolGrid from './components/ToolGrid'
 import IdeasPage from './components/IdeasPage'
 import NewFlow from './components/NewFlow'
 import SettingsPage from './components/SettingsPage'
+import VillagePage from './components/VillagePage'
 
 export default function App() {
   const [page, setPage]       = useState('tools')
@@ -32,6 +33,7 @@ export default function App() {
             onIdeaSaved={() => setPage('ideas')}
           />
         )}
+        {page === 'village' && <VillagePage />}
         {page === 'settings' && <SettingsPage />}
       </main>
     </div>
