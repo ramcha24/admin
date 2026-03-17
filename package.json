@@ -1,7 +1,7 @@
 {
   "name": "admin",
-  "version": "1.0.2",
-  "description": "Admin \u2014 personal OS dashboard for managing tools",
+  "version": "1.0.3",
+  "description": "Admin — personal OS dashboard for managing tools",
   "main": "electron/main.js",
   "scripts": {
     "dev": "bash dev.sh",
