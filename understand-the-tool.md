@@ -12,7 +12,7 @@ Admin is the hub dashboard for the personal OS: it discovers and launches all to
 | `STATE_MACHINES.md` | State diagrams for tool compliance levels, village sync pipeline, workflow execution | `../docs/STATE_MACHINES.md` |
 | `DECISIONS.md` | Architecture decision records: why Electron, why SQLite, why local-first, why Supabase for village | `../docs/DECISIONS.md` |
 | `TOOL_PROTOCOL.md` | L1/L2/L3 compliance spec, tool.json schema, required files per level | `../TOOL_PROTOCOL.md` |
-| `electron/database.js` | admin.db schema: tool_registry, events, ideas, village_* tables, workflows, user_stories | `electron/database.js` |
+| `electron/database.js` | admin.db schema: tool_registry, events, ideas, village_* tables, workflows, capabilities, issues | `electron/database.js` |
 | `tool.json` | Admin's own registry entry; declares services admin:tools:list, admin:capabilities:list | `tool.json` |
 | `dev-status.json` | LLM-generated phase/status summary; current build state at a glance | `dev-status.json` |
 
@@ -26,7 +26,7 @@ Admin is the sole hub; all other tools are spokes.
 
 **Event bus:** Admin owns the `events` table in admin.db. Tools publish via `events:publish(sourceId, eventType, payload)`; Admin writes the row and fires any matching enabled workflows synchronously.
 
-**Village pipeline:** Admin's `electron/village.js` runs a local HTTP server on port 7700. It reads each registered tool's SQLite DB (read-only), upserts activity into `village_activity`, and serves member feeds. `electron/supabase.js` pushes activity and pre-computed per-member feeds to Supabase; pulls interactions back down. `electron/digest.js` sends a daily 8am email digest via Nodemailer.
+**Village pipeline:** Admin's `electron/village.js` runs a local HTTP server on port 7700. It reads each registered tool's data source (read-only) — grove.db and think.db via SQLite, and tantu ledger Markdown files — upserts activity into `village_activity`, and serves member feeds. `electron/supabase.js` pushes activity and pre-computed per-member feeds to Supabase; pulls interactions back down. `electron/digest.js` sends a daily 8am email digest via Nodemailer.
 
 **Tool discovery:** On launch, Admin walks the parent directory for subdirs containing `tool.json`, upserts each into `tool_registry`, and installs a post-commit hook in each tool's git repo via `installPostCommitHook()` in `electron/main.js`.
 
@@ -38,7 +38,7 @@ Admin is the sole hub; all other tools are spokes.
 
 3. **Event Bus:** The `events` table is the pub/sub backbone. Any tool can publish a typed event; Admin's workflow runner picks it up and executes configured actions (send_email_digest, sync_village, log_to_console). This is how loose coupling between tools is achieved without direct imports.
 
-4. **Village:** A local-first social layer. Members have per-tool access levels (follower/reader/commenter/collaborator), optionally grouped by tags. Activity flows from tool DBs → village_activity → Supabase → Cloudflare Pages (public web app). Interactions (comments/reactions) flow the opposite direction.
+4. **Village:** A local-first social layer. Members have per-tool access levels (follower/reader/commenter/collaborator), optionally grouped by tags. Activity flows from tool data sources (SQLite DBs for Electron tools, Markdown ledgers for Tantu) → village_activity → Supabase → Cloudflare Pages (public web app). Interactions (comments/reactions) flow the opposite direction.
 
 5. **Ideas → Plan pipeline:** Ideas are captured in free text, polished with AI, and promoted to structured plans. The Ideas module is an internal scratchpad that feeds the tool-creation workflow (NLP prompt → Claude API plan → scaffold template → open Terminal with `claude` CLI).
 
@@ -48,8 +48,7 @@ See `dev-status.json` for the LLM-generated phase summary. As of the last update
 
 ## What's Not Yet Built
 
-- **Some tool service handlers not yet implemented:** Some registered tools declare service servers in their `tool.json` but have not yet implemented the HTTP server handler. Admin's capability routing to those tools is non-functional until the handler is added.
-- **Non-SQLite tool village sync:** The village sync pipeline reads SQLite DBs from registered tools. For tools that use a different persistence model (e.g., Markdown files), a custom sync function is needed and may not be implemented yet.
+- **Some tool service handlers not yet implemented:** Think (`think/electron/main.js`) and Tantu (`tantu/webapp.py`) declare service contracts in their `tool.json` files but have not yet implemented the HTTP service handler. Admin's capability routing to those tools is non-functional until the handler is added. Grove (port 7710) has a fully working service server.
 - **Full Supabase setup:** Requires user to supply URL + anon key in Settings. Until configured, all Supabase-dependent features (cloud village, deployed web app) are inert.
 - **Email digest:** Requires SMTP credentials in Settings. The cron and mailer code exist but won't fire without config.
 

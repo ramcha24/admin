@@ -126,14 +126,15 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have expanded Admin's functionality with a robust tool management system, including automatic tool discovery, launch/stop controls, and a tool scaffolding feature powered by an LLM. Secure feed tokens and email invite buttons have also been implemented, alongside a lightweight issues tracker.
+Recent commits have significantly enhanced the Admin tool, including secure feed token management, a robust issue tracker for bugs and feature requests, and the integration of Tantu as a first-class tool. The key focus has been on improving tool discovery, service contracts, and workflow automation, laying the groundwork for a more robust and extensible tool ecosystem.
 
 **Next steps:**
-- Implement the remaining service contracts for tools without a service server, mirroring the existing pattern to fully enable inter-tool communication.
-- Develop the handler logic within `electron/main.js` to process requests to pending tool services, integrating them into the capabilities gateway.
-- Create a UI element for the tool dev tracking features (phase badges, summary, next steps) to allow users to monitor tool development progress.
+- Implement full support for the inter-tool service contract system, focusing on error handling and logging.
+- Develop a UI for managing and monitoring the running tool service servers, including metrics and debugging capabilities.
+- Expand the tool registry with more example tools and documentation, particularly for the new service contract functionality.
 
 **Recent commits:**
+- `ce61d5c` Sanitize public docs — replace personal tool names with generic examples
 - `e295ba6` Fix Issues 'Fix it' button — write prompt+script to /tmp, exec via bash
 - `0d3b481` Secure feed tokens, last-seen tracking, and email invite buttons
 - `af77f77` Add Village Identity card and fix duplicate poll effect
@@ -143,5 +144,4 @@ Recent commits have expanded Admin's functionality with a robust tool management
 - `17a192b` Add fs:listDir and fs:readFile IPC handlers for codebase browser
 - `4d66f64` Add ToolDetail control panel, ToolDropdown filters, and admin README
 - `8b0cfb7` Add tool protocol compliance levels (L1/L2/L3) with badge on tool cards
-- `d62069e` Auto-install post-commit hook on every tool at scaffold and discover time
 <!-- STATUS:END -->
