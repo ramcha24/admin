@@ -86,6 +86,10 @@ node -e "
 git add tool.json
 git commit --amend --no-edit --no-verify   # fold tool.json into the version bump commit
 
+# ── Push to remote ───────────────────────────────────────────────────────────
+echo "🚀  Pushing v${VERSION} to origin..."
+git push --no-verify origin main --tags
+
 echo ""
 echo "✅  Admin v${VERSION} installed to ~/Applications/$APP_NAME"
 echo "    Spotlight: search 'Admin' to launch the stable app"
