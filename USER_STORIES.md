@@ -114,6 +114,15 @@ Acceptance criteria:
 - The test URL is displayed in the server status panel with copy and open buttons
 - The feed at that URL shows Grove sessions and streak card visible to a reader
 
+### 3.5 Edit a member's access after adding them
+**As a user, I can edit a member's email, tag, and per-tool access levels after they've been added, so that I can adjust permissions as relationships evolve.**
+
+Acceptance criteria:
+- Each member card shows an edit (pencil) icon button
+- Clicking it opens a modal pre-filled with current email, tag, and access levels
+- Saving updates the database and the member card reflects the changes immediately
+- Access level changes take effect on the next feed request
+
 ### 3.4 Assign a tag to a member
 **As a user, I can assign a tag to a member (during add or later), so that they inherit the tag's default access levels without manual per-tool configuration.**
 
@@ -209,6 +218,16 @@ Acceptance criteria:
 - Shows streak day count and hours this week (for reader+)
 - Card does not appear if streak is 0
 
+### 6.4 Members identify themselves before commenting
+**As a village member, I am prompted to enter my display name before commenting, so that my comments appear with a friendly name rather than an opaque ID.**
+
+Acceptance criteria:
+- On first visit (or if no name is stored), a sticky banner at the bottom asks "Your name (for comments)"
+- The banner does not block reading the feed
+- Entering a name and clicking Save stores it in localStorage for this feed URL
+- All subsequent comments on this device use the stored name
+- The name banner does not reappear on future visits to the same feed URL
+
 ### 6.3 Commenter-level members can leave comments
 **As a village member with commenter or collaborator access, I can type a comment on a session, so that I can react to specific activity.**
 
@@ -238,6 +257,15 @@ Acceptance criteria:
 - Sync runs on a 5-minute interval set on server start
 - No user action required
 - Grove sessions logged while Admin is open appear in feeds within 5 minutes
+
+### 7.3 Think activity appears in village feeds
+**As a user, when I conclude research nodes or start sessions in Think, this activity syncs to village feeds just like Grove sessions, so that my village sees my full research journey.**
+
+Acceptance criteria:
+- After syncing, concluded Think nodes appear as "node_concluded" activity items in the feed
+- New Think sessions appear as "research_started" items
+- Items are visible only to members with Think access at the appropriate level
+- Think activity respects the same follower/reader/commenter/collaborator template levels as Grove
 
 ---
 

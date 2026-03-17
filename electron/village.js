@@ -146,6 +146,85 @@ function syncGroveActivity() {
   groveDb.close()
 }
 
+// ─── Think sync pipeline ──────────────────────────────────────────────────────
+
+function syncThinkActivity() {
+  const { getDb } = require('./database')
+  const adminDb = getDb()
+  const thinkDb = openToolDb('think')
+  if (!thinkDb) return
+
+  const identity = adminDb.prepare('SELECT * FROM village_identity WHERE id=1').get()
+  const owner = identity?.display_name ?? 'Ram'
+
+  const lastSyncRow = adminDb.prepare(
+    "SELECT value FROM settings WHERE key='village_think_last_sync'"
+  ).get()
+  const since = lastSyncRow?.value ?? '1970-01-01 00:00:00'
+
+  // Sync concluded nodes (node_concluded activity type)
+  const concluded = thinkDb.prepare(`
+    SELECT n.id, n.title, n.context_artifact, n.updated_at,
+           s.title as session_title
+    FROM nodes n
+    LEFT JOIN sessions s ON s.id = n.session_id
+    WHERE n.status = 'concluded' AND n.updated_at > ?
+    ORDER BY n.updated_at ASC
+    LIMIT 100
+  `).all(since)
+
+  const insertAct = adminDb.prepare(`
+    INSERT OR IGNORE INTO village_activity (id, source_tool, activity_type, payload, created_at)
+    VALUES (?, 'think', ?, ?, ?)
+  `)
+
+  for (const n of concluded) {
+    let artifact = null
+    try { artifact = JSON.parse(n.context_artifact) } catch {}
+    insertAct.run(
+      `think-node-${n.id}`,
+      'node_concluded',
+      JSON.stringify({
+        owner,
+        topic: n.title ?? 'a topic',
+        session_title: n.session_title ?? 'a session',
+        takeaway: artifact?.takeaway ?? artifact?.summary ?? '',
+      }),
+      n.updated_at
+    )
+  }
+
+  // Sync new sessions (research_started activity type)
+  const newSessions = thinkDb.prepare(`
+    SELECT id, title, created_at FROM sessions
+    WHERE created_at > ?
+    ORDER BY created_at ASC
+    LIMIT 100
+  `).all(since)
+
+  for (const s of newSessions) {
+    const nodeCount = thinkDb.prepare('SELECT COUNT(*) as n FROM nodes WHERE session_id=?').get(s.id)?.n ?? 0
+    insertAct.run(
+      `think-session-${s.id}`,
+      'research_started',
+      JSON.stringify({
+        owner,
+        topic: s.title ?? 'a topic',
+        session_title: s.title ?? 'a session',
+        node_count: nodeCount,
+        goal: '',
+      }),
+      s.created_at
+    )
+  }
+
+  adminDb.prepare(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('village_think_last_sync', datetime('now'))"
+  ).run()
+
+  thinkDb.close()
+}
+
 // ─── Access resolution ────────────────────────────────────────────────────────
 
 function resolveAccess(db, memberId, toolId) {
@@ -179,6 +258,8 @@ function getMemberFeed(memberId) {
 
   const groveLevel  = resolveAccess(adminDb, memberId, 'grove')
   const groveTypes  = loadToolVillageConfig('grove')
+  const thinkLevel  = resolveAccess(adminDb, memberId, 'think')
+  const thinkTypes  = loadToolVillageConfig('think')
 
   const identity = adminDb.prepare('SELECT * FROM village_identity WHERE id=1').get()
 
@@ -191,11 +272,15 @@ function getMemberFeed(memberId) {
   const items = []
   for (const a of activities) {
     // Check this member has access to this tool
-    const level = a.source_tool === 'grove' ? groveLevel : null
+    let level = null
+    if (a.source_tool === 'grove') level = groveLevel
+    else if (a.source_tool === 'think') level = thinkLevel
     if (!level) continue
 
     const payload  = JSON.parse(a.payload)
-    const typeDef  = a.source_tool === 'grove' ? groveTypes[a.activity_type] : null
+    let typeDef = null
+    if (a.source_tool === 'grove') typeDef = groveTypes[a.activity_type]
+    else if (a.source_tool === 'think') typeDef = thinkTypes[a.activity_type]
     const template = typeDef?.levels?.[level] ?? payload.owner + ' had activity'
     const rendered = render(template, payload)
 
@@ -206,9 +291,15 @@ function getMemberFeed(memberId) {
       detail.duration_minutes = payload.duration_minutes
       detail.streak_days      = payload.streak_days
       detail.total_hours_this_week = payload.total_hours_this_week
+      // Think-specific detail fields
+      detail.topic            = payload.topic
+      detail.session_title    = payload.session_title
+      detail.node_count       = payload.node_count
     }
     if (level === 'commenter' || level === 'collaborator') {
-      detail.notes = payload.notes
+      detail.notes    = payload.notes
+      detail.takeaway = payload.takeaway
+      detail.goal     = payload.goal
     }
 
     // Interactions
@@ -274,6 +365,7 @@ function json(res, data, status = 200) {
 
 function startVillageServer() {
   syncGroveActivity()
+  syncThinkActivity()
   seedTestVillager()
 
   server = http.createServer((req, res) => {
@@ -282,6 +374,7 @@ function startVillageServer() {
     // ── GET /api/feed ──────────────────────────────────────────────────────
     if (req.method === 'GET' && u.pathname === '/api/feed') {
       syncGroveActivity()
+      syncThinkActivity()
       const memberId = u.searchParams.get('member') ?? 'test-villager'
       const data = getMemberFeed(memberId)
       if (!data) return json(res, { error: 'Member not found' }, 404)
@@ -302,17 +395,19 @@ function startVillageServer() {
       req.on('data', d => body += d)
       req.on('end', () => {
         try {
-          const { activity_id, member_id, type, payload } = JSON.parse(body)
+          const { activity_id, member_id, type, payload, member_name } = JSON.parse(body)
           const { getDb } = require('./database')
           const db = getDb()
           const member = db.prepare('SELECT * FROM village_members WHERE id=?').get(member_id)
           if (!member) return json(res, { error: 'Unknown member' }, 403)
 
+          // Use member_name from payload if provided, else fall back to DB name
+          const displayName = member_name || member.name
           const id = `interaction-${Date.now()}-${Math.random().toString(36).slice(2)}`
           db.prepare(`
             INSERT INTO village_interactions (id, activity_id, member_id, member_name, type, payload)
             VALUES (?, ?, ?, ?, ?, ?)
-          `).run(id, activity_id, member_id, member.name, type ?? 'comment', JSON.stringify(payload ?? {}))
+          `).run(id, activity_id, member_id, displayName, type ?? 'comment', JSON.stringify(payload ?? {}))
           json(res, { ok: true, id })
         } catch (e) {
           json(res, { error: e.message }, 400)
@@ -343,11 +438,11 @@ function startVillageServer() {
   })
 
   // Re-sync every 5 minutes
-  setInterval(syncGroveActivity, 5 * 60 * 1000)
+  setInterval(() => { syncGroveActivity(); syncThinkActivity() }, 5 * 60 * 1000)
 }
 
 function stopVillageServer() {
   if (server) { server.close(); server = null }
 }
 
-module.exports = { startVillageServer, stopVillageServer, syncGroveActivity, seedTestVillager, getMemberFeed, VILLAGE_PORT }
+module.exports = { startVillageServer, stopVillageServer, syncGroveActivity, syncThinkActivity, seedTestVillager, getMemberFeed, VILLAGE_PORT }

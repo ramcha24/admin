@@ -3,7 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const { execFile, spawn } = require('child_process')
 const { initDatabase, getDb } = require('./database')
-const { startVillageServer, stopVillageServer, syncGroveActivity, VILLAGE_PORT } = require('./village')
+const { startVillageServer, stopVillageServer, syncGroveActivity, syncThinkActivity, VILLAGE_PORT } = require('./village')
 const { syncToSupabase } = require('./supabase')
 const { scheduleDailyDigest, cancelDigestSchedule, runDailyDigest } = require('./digest')
 
@@ -707,6 +707,12 @@ ipcMain.handle('village:addMember', (_, { name, email, avatarEmoji, tagId }) => 
   return { ok: true, id, url: `http://localhost:${VILLAGE_PORT}/?member=${id}` }
 })
 
+ipcMain.handle('village:updateMember', (_, { id, email, tagId }) => {
+  const db = getDb()
+  db.prepare('UPDATE village_members SET email=?, tag_id=? WHERE id=?').run(email, tagId ?? null, id)
+  return { ok: true }
+})
+
 ipcMain.handle('village:setAccess', (_, { memberId, toolId, level }) => {
   getDb().prepare(`
     INSERT OR REPLACE INTO village_access (member_id, tool_id, level)
@@ -717,6 +723,7 @@ ipcMain.handle('village:setAccess', (_, { memberId, toolId, level }) => {
 
 ipcMain.handle('village:sync', async () => {
   syncGroveActivity()
+  syncThinkActivity()
   const result = await syncToSupabase(getDb())
   return { ok: true, supabase: result }
 })
@@ -859,6 +866,7 @@ async function runWorkflows(eventType, sourceTool, payload) {
         console.log(`[Workflow] ${wf.name}: digest sent`, r)
       } else if (wf.action_type === 'sync_village') {
         syncGroveActivity()
+        syncThinkActivity()
         const { syncToSupabase } = require('./supabase')
         await syncToSupabase(db)
         console.log(`[Workflow] ${wf.name}: village synced`)

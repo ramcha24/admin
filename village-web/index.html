@@ -211,6 +211,33 @@
     const memberId = new URLSearchParams(location.search).get('member') ?? 'test-villager'
     const API = ''  // same origin (local mode only)
 
+    // Member's chosen display name (stored in localStorage per feed URL)
+    const STORAGE_KEY = `village_name_${memberId}`
+    let memberDisplayName = localStorage.getItem(STORAGE_KEY) ?? ''
+
+    function showNameBanner() {
+      if (memberDisplayName) return
+      const banner = document.createElement('div')
+      banner.id = 'name-banner'
+      banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #ede9e3;padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:100;box-shadow:0 -2px 8px rgba(0,0,0,.06);'
+      banner.innerHTML = `
+        <span style="font-size:13px;color:#78716c;flex-shrink:0;">Your name (for comments):</span>
+        <input id="name-input" placeholder="e.g. Alice" style="flex:1;border:1px solid #ede9e3;border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;outline:none;" />
+        <button onclick="saveName()" style="background:#6366f1;color:white;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Save</button>
+      `
+      document.body.appendChild(banner)
+      document.getElementById('name-input').focus()
+    }
+
+    function saveName() {
+      const input = document.getElementById('name-input')
+      const val = input?.value?.trim()
+      if (!val) return
+      memberDisplayName = val
+      localStorage.setItem(STORAGE_KEY, val)
+      document.getElementById('name-banner')?.remove()
+    }
+
     function timeAgo(iso) {
       const d = new Date(iso)
       const diff = (Date.now() - d.getTime()) / 1000
@@ -396,7 +423,7 @@
               username:    sUsername,
               activity_id: activityId,
               member_id:   memberId,
-              member_name: document.querySelector('.header-sub')?.textContent?.replace("You're viewing as ",'') ?? memberId,
+              member_name: memberDisplayName || memberId,
               type:        'comment',
               payload:     { body },
             }),
@@ -411,7 +438,7 @@
           const res = await fetch(`${API}/api/interact`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activity_id: activityId, member_id: memberId, type: 'comment', payload: { body } })
+            body: JSON.stringify({ activity_id: activityId, member_id: memberId, type: 'comment', payload: { body }, member_name: memberDisplayName || memberId })
           })
           if (res.ok) {
             input.value = ''
@@ -452,6 +479,7 @@
       try {
         const data = IS_SUPABASE ? await loadSupabase() : await loadLocal()
         app.innerHTML = renderFeed(data)
+        showNameBanner()
       } catch (e) {
         const hint = IS_SUPABASE
           ? 'Make sure the owner has synced activity from Admin, then refresh.'
