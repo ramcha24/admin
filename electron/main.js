@@ -1828,6 +1828,98 @@ ipcMain.handle('fs:readFile', (_, filePath) => {
   }
 })
 
+// ─── JSDoc parser ─────────────────────────────────────────────────────────────
+
+/**
+ * Parse a JSDoc comment block string into a structured object.
+ *
+ * @param {string} comment - Raw comment text (between /** and *‌/).
+ * @param {string|null} name - Function or module name, if known.
+ * @returns {{name:string|null,description:string,params:object[],returns:object|null,throws:object|null,isFileHeader:boolean}}
+ */
+function parseJsdocBlock(comment, name) {
+  const lines = comment.split('\n').map(l => l.replace(/^\s*\*\s?/, '').trim())
+  const params = []
+  let returns = null
+  let throws_ = null
+  const descLines = []
+  let inDesc = true
+  let isFileHeader = false
+
+  for (const line of lines) {
+    if (line.startsWith('@file'))        { isFileHeader = true; inDesc = false }
+    else if (line.startsWith('@module')) { inDesc = false }
+    else if (line.startsWith('@description')) {
+      inDesc = false
+      const rest = line.replace(/^@description\s*/, '')
+      if (rest) descLines.push(rest)
+    } else if (line.startsWith('@param')) {
+      inDesc = false
+      const m = line.match(/@param\s+\{([^}]*)\}\s+(\[?[\w.[\]]+\]?)\s*[-—]?\s*(.*)/)
+      if (m) params.push({ type: m[1], name: m[2], desc: m[3] })
+    } else if (line.startsWith('@returns') || line.startsWith('@return')) {
+      inDesc = false
+      const m = line.match(/@returns?\s+\{([^}]*)\}\s*(.*)/)
+      if (m) returns = { type: m[1], desc: m[2] }
+    } else if (line.startsWith('@throws')) {
+      inDesc = false
+      const m = line.match(/@throws\s+\{([^}]*)\}\s*(.*)/)
+      if (m) throws_ = { type: m[1], desc: m[2] }
+    } else if (line.startsWith('@')) {
+      inDesc = false
+    } else if (inDesc && line) {
+      descLines.push(line)
+    }
+  }
+
+  return { name, description: descLines.join(' ').trim(), params, returns, throws: throws_, isFileHeader }
+}
+
+/**
+ * Parse all JSDoc blocks from a JS source file.
+ *
+ * Returns a file-level header entry (from the first `@file` block) and an
+ * array of per-function entries extracted by matching `/** ... *‌/` blocks
+ * immediately preceding a `function` declaration.
+ *
+ * @param {string} src - Full source text of the JS file.
+ * @returns {{fileEntry:object|null, entries:object[]}}
+ */
+function parseJsdocSource(src) {
+  const entries = []
+
+  // File-level header: first /** block containing @file or @description
+  let fileEntry = null
+  const firstBlock = src.match(/^\/\*\*([\s\S]*?)\*\//)
+  if (firstBlock) {
+    const parsed = parseJsdocBlock(firstBlock[1], null)
+    if (parsed.isFileHeader || parsed.description) {
+      fileEntry = { ...parsed, isFileHeader: true }
+    }
+  }
+
+  // Per-function blocks: /** ... */ immediately before a function declaration
+  const re = /\/\*\*([\s\S]*?)\*\/[ \t]*\n[ \t]*(?:async[ \t]+)?function[ \t]+(\w+)/g
+  let m
+  while ((m = re.exec(src)) !== null) {
+    const parsed = parseJsdocBlock(m[1], m[2])
+    if (parsed.description || parsed.params.length) entries.push(parsed)
+  }
+
+  return { fileEntry, entries }
+}
+
+ipcMain.handle('docs:parseJsdoc', (_, filePath) => {
+  try {
+    const resolved = path.resolve(filePath)
+    if (!resolved.startsWith(ADMIN_PARENT)) return { error: 'Access denied outside Admin workspace' }
+    const src = fs.readFileSync(resolved, 'utf8')
+    return parseJsdocSource(src)
+  } catch (e) {
+    return { error: e.message }
+  }
+})
+
 // ─── User stories ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('stories:getAll', () => {
