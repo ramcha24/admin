@@ -126,24 +126,22 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have focused on enhancing the Admin tool's functionality and documentation.  The latest release (v1.0.10) includes a new multi-select feature for issues, auto-close functionality, improved JSDoc API references for tools, and a release script for automated pushes. The village web app has also been updated with activity badges and a daily email digest.
+Recent commits have focused on stabilizing v1.0.11 with key improvements including a fix for stale runningTools entries, a v1.0.11 release, improvements to the Docs tab with JSDoc API references, and multi-select/auto-close functionality for the Build it session. The new release also includes email digest functionality and Supabase integration for activity synchronization.
 
 **Next steps:**
-- Implement the 'Try it' panel in the Capabilities page for interactive service exploration.
-- Develop a robust error handling system for service calls, providing more informative error messages to the user.
-- Refactor the workflow engine to handle more complex event triggers and actions.
-- Add a UI element for managing the tool_registry in the database, allowing admins to manually add or remove tools.
-- Implement a logging system to track service calls and potential errors for debugging.
+- Implement robust error handling for the database interactions in `electron/database.js` to prevent app crashes.
+- Refactor the `electron/village.js` code to improve performance of the feed generation process, particularly with large datasets.
+- Add unit tests for the workflow engine to ensure correct event triggering and execution, covering different tool combinations.
 
 **Recent commits:**
-- `81f108b` fix: validate launch_app path exists before opening, add launch error feedback
+- `60e6e66` fix: clear stale runningTools entry before rejecting launch as already running
+- `b900426` chore: release v1.0.11
+- `6d0e0ad` chore: update auto-generated files
+- `de5b467` fix: validate launch_app path exists before opening, add launch error feedback (#14)
 - `67286ff` chore: release v1.0.10
 - `afc7824` chore: update auto-generated files
 - `6b3f677` feat: show JSDoc API reference in Docs tab for each tool (#13)
 - `466740a` chore: release v1.0.9
 - `89e4808` docs: add JSDoc/Doxygen-style documentation to all electron modules (#12)
 - `b9ffe73` chore: release v1.0.8
-- `1116e3d` chore: update auto-generated files
-- `f6bd6d4` feat: multi-select issues and auto-close after Build it session (#11)
-- `b43eb9d` chore: release v1.0.7
 <!-- STATUS:END -->
