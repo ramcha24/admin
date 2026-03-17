@@ -332,7 +332,10 @@ ipcMain.handle('tools:launch', (_, id) => {
   const db = getDb()
   const tool = db.prepare('SELECT * FROM tool_registry WHERE id = ?').get(id)
   if (!tool) return { ok: false, error: 'Tool not found' }
-  if (runningTools[id]) return { ok: false, error: 'Already running' }
+  if (runningTools[id]) {
+    try { process.kill(runningTools[id].pid, 0) } catch { delete runningTools[id] }
+    if (runningTools[id]) return { ok: false, error: 'Already running' }
+  }
 
   // Prefer packaged stable .app if available and still exists; fall back to dev server
   if (tool.launch_app && fs.existsSync(tool.launch_app)) {
