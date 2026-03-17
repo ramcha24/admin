@@ -156,7 +156,7 @@ function createSchema() {
   const setDefault = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
   setDefault.run('llm_provider', 'ollama')
   setDefault.run('llm_model', 'claude-haiku-4-5-20251001')
-  setDefault.run('ollama_base_url', 'http://localhost:11434')
+  setDefault.run('ollama_base_url', 'http://127.0.0.1:11434')
   setDefault.run('ollama_model', 'gemma3:latest')
   // Supabase (placeholder — fill in Admin Settings to enable cloud sync)
   setDefault.run('supabase_url', 'https://YOUR_PROJECT.supabase.co')
