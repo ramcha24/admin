@@ -666,7 +666,7 @@ ipcMain.handle('ideas:plan', async (_, { id, title, summary }) => {
   const script = `
     tell application "Terminal"
       activate
-      do script "cd '${ADMIN_PARENT}' && claude --plan '${prompt.replace(/'/g, "'\\''")}'"
+      do script "cd '${ADMIN_PARENT}' && claude '${prompt.replace(/'/g, "'\\''")}'"
     end tell
   `
   return new Promise((resolve) => {
