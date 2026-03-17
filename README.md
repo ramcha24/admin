@@ -126,16 +126,17 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have finalized the core admin tool, including a stable release with single-instance locking, a village server error handler, and a 'Try-it' panel for capabilities. Key improvements include file ingestion via `textutil`, a daily email digest, and a streamlined workflow for managing tool service contracts, all leveraging Supabase for data synchronization.
+Version 1.0.2 introduces a stable release with key improvements including a functional single-instance lock, a streamlined release process, and error handling for the Village server. New features like the Try-it panel in CapabilitiesPage and file ingestion enhancements, along with improvements to the Village activity feed, further stabilize the Admin tool.
 
 **Next steps:**
-- Implement robust testing for the village feed and interactions, focusing on token refresh and data consistency.
-- Develop a user interface for managing workflow triggers, allowing users to define tool-specific actions based on events.
-- Refactor the Ideas page to improve performance and scalability, particularly for handling large file ingestions and LLM processing.
-- Add a mechanism for monitoring tool service server health and automatically restarting them if they fail.
-- Create a documentation update detailing the Supabase integration and data model for developers.
+- Implement robust error handling for all file ingestion types, specifically addressing potential issues with DOCX parsing and handling different encoding schemes.
+- Refactor the `electron/village.js` module to optimize the feed generation process and improve response times for members.
+- Expand the `CapabilitiesPage` by adding support for more service contract schemas and improved documentation generation, including example payloads.
 
 **Recent commits:**
+- `c9723aa` chore: release v1.0.2
+- `7c67011` chore: update auto-generated files
+- `6516028` Fix ADMIN_PARENT in packaged app — bake real tools path at release time
 - `756c729` chore: release v1.0.1
 - `3666e9e` chore: update dev-status and README
 - `fb25802` Add single-instance lock, stable release publish flow, and release script
@@ -143,7 +144,4 @@ Recent commits have finalized the core admin tool, including a stable release wi
 - `3f648d6` Add Try-it panel to CapabilitiesPage and Ideas→Issue conversion
 - `958dec1` Ideas: truncate card summaries with inline more → link
 - `20a17d6` Ideas: hide tag display, keep tags for search only
-- `b4abcd9` Ideas: extract text from DOCX/DOC/RTF via textutil before LLM ingestion
-- `c6b5c8d` Ideas: proper file ingestion via dedicated ingestFile handler
-- `51cae13` Ideas: auto-extract ideas from file instead of dumping raw content
 <!-- STATUS:END -->

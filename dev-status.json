@@ -1,12 +1,10 @@
 {
-  "last_commit": "756c729",
-  "updated_at": "2026-03-17T16:04:57.583Z",
-  "dev_summary": "Recent commits have finalized the core admin tool, including a stable release with single-instance locking, a village server error handler, and a 'Try-it' panel for capabilities. Key improvements include file ingestion via `textutil`, a daily email digest, and a streamlined workflow for managing tool service contracts, all leveraging Supabase for data synchronization.",
+  "last_commit": "c9723aa",
+  "updated_at": "2026-03-17T16:08:42.487Z",
+  "dev_summary": "Version 1.0.2 introduces a stable release with key improvements including a functional single-instance lock, a streamlined release process, and error handling for the Village server. New features like the Try-it panel in CapabilitiesPage and file ingestion enhancements, along with improvements to the Village activity feed, further stabilize the Admin tool.",
   "next_steps": [
-    "Implement robust testing for the village feed and interactions, focusing on token refresh and data consistency.",
-    "Develop a user interface for managing workflow triggers, allowing users to define tool-specific actions based on events.",
-    "Refactor the Ideas page to improve performance and scalability, particularly for handling large file ingestions and LLM processing.",
-    "Add a mechanism for monitoring tool service server health and automatically restarting them if they fail.",
-    "Create a documentation update detailing the Supabase integration and data model for developers."
+    "Implement robust error handling for all file ingestion types, specifically addressing potential issues with DOCX parsing and handling different encoding schemes.",
+    "Refactor the `electron/village.js` module to optimize the feed generation process and improve response times for members.",
+    "Expand the `CapabilitiesPage` by adding support for more service contract schemas and improved documentation generation, including example payloads."
   ]
 }
