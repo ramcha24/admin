@@ -86,15 +86,32 @@ function installPostCommitHook(toolDir) {
   try {
     const hooksDir = path.join(toolDir, '.git', 'hooks')
     if (!fs.existsSync(hooksDir)) return  // not a git repo yet
-    const hookPath = path.join(hooksDir, 'post-commit')
-    const hookContent = [
+
+    // post-commit: regenerate dev-status.json
+    const postCommit = [
       '#!/bin/bash',
       '# Auto-update dev-status.json after each commit (installed by Admin)',
       '~/.local/bin/update-dev-status "$(git rev-parse --show-toplevel)" &',
       '',
     ].join('\n')
-    fs.writeFileSync(hookPath, hookContent)
-    fs.chmodSync(hookPath, 0o755)
+    fs.writeFileSync(path.join(hooksDir, 'post-commit'), postCommit)
+    fs.chmodSync(path.join(hooksDir, 'post-commit'), 0o755)
+
+    // pre-push: block direct pushes to main/master
+    const prePush = [
+      '#!/usr/bin/env bash',
+      '# Block direct pushes to main/master (installed by Admin)',
+      'BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)',
+      'if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then',
+      '  echo "pre-push: Direct push to \'$BRANCH\' is blocked. Use a feature branch + PR."',
+      '  echo "To release Admin specifically, use: bash release.sh"',
+      '  exit 1',
+      'fi',
+      'exit 0',
+      '',
+    ].join('\n')
+    fs.writeFileSync(path.join(hooksDir, 'pre-push'), prePush)
+    fs.chmodSync(path.join(hooksDir, 'pre-push'), 0o755)
   } catch (e) {
     console.warn('[installPostCommitHook]', e.message)
   }
