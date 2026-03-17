@@ -504,12 +504,14 @@ ipcMain.handle('tools:openClaudeCode', async (_, toolName, plan) => {
 
 // ─── Event bus ────────────────────────────────────────────────────────────────
 
-ipcMain.handle('events:publish', (_, sourceId, eventType, payload) => {
+ipcMain.handle('events:publish', async (_, sourceId, eventType, payload) => {
   const db = getDb()
   const result = db.prepare(`
     INSERT INTO events (source_tool, event_type, payload)
     VALUES (?, ?, ?)
   `).run(sourceId, eventType, JSON.stringify(payload))
+  // Fire matching workflows asynchronously
+  runWorkflows(eventType, sourceId, payload).catch(e => console.error('[Events] Workflow error:', e.message))
   return { ok: true, id: result.lastInsertRowid }
 })
 
@@ -817,6 +819,57 @@ ipcMain.handle('village:assignTag', (_, { memberId, tagId }) => {
   getDb().prepare('UPDATE village_members SET tag_id=? WHERE id=?').run(tagId ?? null, memberId)
   return { ok: true }
 })
+
+// ─── Workflows ────────────────────────────────────────────────────────────────
+
+ipcMain.handle('workflows:getAll', () => {
+  return getDb().prepare('SELECT * FROM workflows ORDER BY created_at DESC').all()
+})
+
+ipcMain.handle('workflows:save', (_, { name, trigger_tool, trigger_event, action_tool, action_type, action_payload }) => {
+  const result = getDb().prepare(`
+    INSERT INTO workflows (name, trigger_tool, trigger_event, action_tool, action_type, action_payload)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(name, trigger_tool, trigger_event, action_tool ?? null, action_type, action_payload ?? null)
+  return { ok: true, id: result.lastInsertRowid }
+})
+
+ipcMain.handle('workflows:update', (_, { id, enabled }) => {
+  getDb().prepare('UPDATE workflows SET enabled=? WHERE id=?').run(enabled ? 1 : 0, id)
+  return { ok: true }
+})
+
+ipcMain.handle('workflows:delete', (_, id) => {
+  getDb().prepare('DELETE FROM workflows WHERE id=?').run(id)
+  return { ok: true }
+})
+
+// Run matching workflows when an event fires
+async function runWorkflows(eventType, sourceTool, payload) {
+  const db = getDb()
+  const wfs = db.prepare(
+    'SELECT * FROM workflows WHERE enabled=1 AND trigger_tool=? AND trigger_event=?'
+  ).all(sourceTool, eventType)
+
+  for (const wf of wfs) {
+    try {
+      if (wf.action_type === 'send_email_digest') {
+        const { runDailyDigest } = require('./digest')
+        const r = await runDailyDigest(db)
+        console.log(`[Workflow] ${wf.name}: digest sent`, r)
+      } else if (wf.action_type === 'sync_village') {
+        syncGroveActivity()
+        const { syncToSupabase } = require('./supabase')
+        await syncToSupabase(db)
+        console.log(`[Workflow] ${wf.name}: village synced`)
+      } else if (wf.action_type === 'log_to_console') {
+        console.log(`[Workflow] ${wf.name}:`, JSON.stringify(payload))
+      }
+    } catch (e) {
+      console.error(`[Workflow] ${wf.name} failed:`, e.message)
+    }
+  }
+}
 
 // ─── Digest ───────────────────────────────────────────────────────────────────
 

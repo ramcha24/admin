@@ -53,6 +53,12 @@ contextBridge.exposeInMainWorld('api', {
   deleteVillageTag:      (id)     => invoke('village:deleteTag', id),
   assignVillageTag:      (data)   => invoke('village:assignTag', data),
 
+  // Workflows
+  getWorkflows:     ()                   => invoke('workflows:getAll'),
+  saveWorkflow:     (data)               => invoke('workflows:save', data),
+  updateWorkflow:   (data)               => invoke('workflows:update', data),
+  deleteWorkflow:   (id)                 => invoke('workflows:delete', id),
+
   // Digest
   runDigestNow:     ()                   => invoke('digest:runNow'),
 
