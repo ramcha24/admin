@@ -253,13 +253,13 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
                 onClick={() => onStart(issue.id)}
                 disabled={starting}
                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:opacity-50"
-                title="Open Claude Code in Terminal with this issue pre-loaded"
+                title="Create a feature branch and open Claude Code with this issue pre-loaded"
               >
                 {starting
                   ? <RefreshCw size={11} className="animate-spin" />
                   : <Play size={11} />
                 }
-                {starting ? 'Opening…' : 'Fix it'}
+                {starting ? 'Opening…' : 'Build it'}
               </button>
             )}
             <button onClick={() => { setEditing(true); setResNote(issue.resolution_note ?? '') }} className="p-1 text-gray-300 hover:text-gray-500 transition-colors">
@@ -483,7 +483,7 @@ export default function IssuesPage({ onCountChange }) {
         <div className="flex flex-col gap-2">
           {startError && (
             <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">
-              Fix it failed: {startError}
+              Build it failed: {startError}
             </div>
           )}
           {filtered.map(issue => (
