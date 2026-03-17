@@ -126,22 +126,22 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Version 1.0.2 introduces a stable release with key improvements including a functional single-instance lock, a streamlined release process, and error handling for the Village server. New features like the Try-it panel in CapabilitiesPage and file ingestion enhancements, along with improvements to the Village activity feed, further stabilize the Admin tool.
+Recent commits have focused on stabilizing v1.0.3 of Admin, introducing a pre-push hook and Electron builder integration for consistent app builds. Key improvements include a functional 'Try it' panel for service contracts, enhanced file ingestion with support for DOCX and RTF via textutil, and a robust single-instance lock to prevent crashes. The village server now handles EADDRINUSE errors and email digests are scheduled daily.
 
 **Next steps:**
-- Implement robust error handling for all file ingestion types, specifically addressing potential issues with DOCX parsing and handling different encoding schemes.
-- Refactor the `electron/village.js` module to optimize the feed generation process and improve response times for members.
-- Expand the `CapabilitiesPage` by adding support for more service contract schemas and improved documentation generation, including example payloads.
+- Implement robust error handling and logging within the `electron/village.js` module to improve debugging.
+- Develop a more user-friendly interface for managing workflow triggers and actions within the 'Workflows' page.
+- Create a comprehensive test suite to verify the functionality of all newly introduced features, particularly around the service contract gateway and event publishing.
 
 **Recent commits:**
+- `10c2065` Enforce feature-branch workflow: pre-push hook + PreToolUse guard
+- `8876839` chore: release v1.0.3
+- `a267d07` chore: update auto-generated files
+- `10ac88f` Add app icon and wire into electron-builder config
 - `c9723aa` chore: release v1.0.2
 - `7c67011` chore: update auto-generated files
 - `6516028` Fix ADMIN_PARENT in packaged app — bake real tools path at release time
 - `756c729` chore: release v1.0.1
 - `3666e9e` chore: update dev-status and README
 - `fb25802` Add single-instance lock, stable release publish flow, and release script
-- `a1070a6` Add EADDRINUSE error handling to village server; update dev-status
-- `3f648d6` Add Try-it panel to CapabilitiesPage and Ideas→Issue conversion
-- `958dec1` Ideas: truncate card summaries with inline more → link
-- `20a17d6` Ideas: hide tag display, keep tags for search only
 <!-- STATUS:END -->
