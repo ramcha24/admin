@@ -61,7 +61,26 @@ function createSchema() {
       key   TEXT PRIMARY KEY,
       value TEXT
     );
+
+    -- Stored ideas (from Store flow or ingestion)
+    CREATE TABLE IF NOT EXISTS ideas (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      title       TEXT NOT NULL DEFAULT '',
+      summary     TEXT NOT NULL DEFAULT '',
+      raw_text    TEXT NOT NULL DEFAULT '',
+      tags        TEXT NOT NULL DEFAULT '[]',
+      source      TEXT NOT NULL DEFAULT '',
+      created_at  TEXT DEFAULT (datetime('now')),
+      updated_at  TEXT DEFAULT (datetime('now'))
+    );
   `)
+
+  // Seed default LLM settings if not present
+  const setDefault = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
+  setDefault.run('llm_provider', 'claude')
+  setDefault.run('llm_model', 'claude-haiku-4-5-20251001')
+  setDefault.run('ollama_base_url', 'http://localhost:11434')
+  setDefault.run('ollama_model', 'llama3')
 }
 
 function getDb() { return db }
