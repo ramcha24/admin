@@ -126,22 +126,24 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have focused on enhancing the Admin tool by adding JSDoc API references for tool modules, implementing multi-select and auto-close functionality for Build it sessions, and introducing a release script for automated deployments. The core architecture remains consistent, with improvements to the village feed and issue tracking capabilities.
+Recent commits have focused on enhancing the Admin tool's functionality and documentation.  The latest release (v1.0.10) includes a new multi-select feature for issues, auto-close functionality, improved JSDoc API references for tools, and a release script for automated pushes. The village web app has also been updated with activity badges and a daily email digest.
 
 **Next steps:**
-- Implement the 'Try it' panel in the Capabilities page to allow users to test service calls directly within the Admin UI.
-- Refactor the workflow engine to support more complex conditional actions based on event payloads.
-- Investigate and address potential performance bottlenecks in the village feed generation, particularly regarding large activity datasets.
+- Implement the 'Try it' panel in the Capabilities page for interactive service exploration.
+- Develop a robust error handling system for service calls, providing more informative error messages to the user.
+- Refactor the workflow engine to handle more complex event triggers and actions.
+- Add a UI element for managing the tool_registry in the database, allowing admins to manually add or remove tools.
+- Implement a logging system to track service calls and potential errors for debugging.
 
 **Recent commits:**
-- `3e35724` feat: show JSDoc API reference in Docs tab for each tool
+- `81f108b` fix: validate launch_app path exists before opening, add launch error feedback
+- `67286ff` chore: release v1.0.10
+- `afc7824` chore: update auto-generated files
+- `6b3f677` feat: show JSDoc API reference in Docs tab for each tool (#13)
 - `466740a` chore: release v1.0.9
 - `89e4808` docs: add JSDoc/Doxygen-style documentation to all electron modules (#12)
 - `b9ffe73` chore: release v1.0.8
 - `1116e3d` chore: update auto-generated files
 - `f6bd6d4` feat: multi-select issues and auto-close after Build it session (#11)
 - `b43eb9d` chore: release v1.0.7
-- `1a97a53` chore: update auto-generated files
-- `a66e9d8` feat: auto-create feature branch on Build it, rename Fix it → Build it (#10)
-- `1d80022` chore: release v1.0.6
 <!-- STATUS:END -->
