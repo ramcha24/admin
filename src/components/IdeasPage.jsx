@@ -1,31 +1,114 @@
-import React, { useEffect, useState, useMemo } from 'react'
-import { Lightbulb, Trash2, Terminal, RefreshCw, Plus, Search, X } from 'lucide-react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
+import {
+  Lightbulb, Trash2, Terminal, RefreshCw, Plus, Search, X,
+  Pencil, Check, ArrowLeft, Loader, Upload,
+} from 'lucide-react'
 
-function IdeaCard({ idea, onPlan, onDelete, planning }) {
+// ─── Edit modal ───────────────────────────────────────────────────────────────
+
+function EditModal({ idea, onSave, onClose }) {
+  const [title,    setTitle]    = useState(idea.title)
+  const [summary,  setSummary]  = useState(idea.summary)
+  const [tagInput, setTagInput] = useState('')
+  const [tags,     setTags]     = useState(idea.tags ?? [])
+  const [saving,   setSaving]   = useState(false)
+  const titleRef = useRef(null)
+
+  useEffect(() => { titleRef.current?.focus() }, [])
+
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase()
+    if (t && !tags.includes(t)) setTags(prev => [...prev, t])
+    setTagInput('')
+  }
+
+  const handleSave = async () => {
+    if (!title.trim()) return
+    setSaving(true)
+    await onSave({ id: idea.id, title: title.trim(), summary: summary.trim(), tags })
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 flex flex-col gap-4"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900">Edit Idea</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+          <input ref={titleRef} value={title} onChange={e => setTitle(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Summary</label>
+          <textarea value={summary} onChange={e => setSummary(e.target.value)} rows={4}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Tags</label>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {tags.map(t => (
+              <span key={t} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-500">
+                {t}
+                <button onClick={() => setTags(prev => prev.filter(x => x !== t))} className="hover:text-indigo-700"><X size={10} /></button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input value={tagInput} onChange={e => setTagInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
+              placeholder="Add tag…"
+              className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <button onClick={addTag} className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50">Add</button>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+          <button onClick={handleSave} disabled={saving || !title.trim()}
+            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark disabled:opacity-50 transition-colors">
+            {saving ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Idea card ────────────────────────────────────────────────────────────────
+
+function IdeaCard({ idea, onPlan, onDelete, onEdit, planning }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-semibold text-gray-900 leading-snug">{idea.title}</h3>
-        {confirmDelete ? (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button onClick={() => onDelete(idea.id)}
-              className="text-xs text-red-500 font-medium hover:text-red-700">
-              Delete
-            </button>
-            <button onClick={() => setConfirmDelete(false)}
-              className="text-xs text-gray-400 hover:text-gray-600">
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <button onClick={() => setConfirmDelete(true)}
-            className="text-gray-300 hover:text-red-400 transition-colors shrink-0 mt-0.5"
-            title="Delete idea">
-            <Trash2 size={14} />
-          </button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {confirmDelete ? (
+            <>
+              <button onClick={() => onDelete(idea.id)} className="text-xs text-red-500 font-medium hover:text-red-700">Delete</button>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 hover:text-gray-600 ml-1">Cancel</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => onEdit(idea)} className="text-gray-300 hover:text-indigo-400 transition-colors mt-0.5" title="Edit idea">
+                <Pencil size={13} />
+              </button>
+              <button onClick={() => setConfirmDelete(true)} className="text-gray-300 hover:text-red-400 transition-colors mt-0.5" title="Delete idea">
+                <Trash2 size={13} />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <p className="text-sm text-gray-500 leading-relaxed flex-1">{idea.summary}</p>
@@ -33,9 +116,7 @@ function IdeaCard({ idea, onPlan, onDelete, planning }) {
       {idea.tags?.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {idea.tags.map(tag => (
-            <span key={tag} className="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-500">
-              {tag}
-            </span>
+            <span key={tag} className="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-500">{tag}</span>
           ))}
         </div>
       )}
@@ -44,14 +125,9 @@ function IdeaCard({ idea, onPlan, onDelete, planning }) {
         <span className="text-xs text-gray-400">
           {new Date(idea.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </span>
-        <button
-          onClick={() => onPlan(idea)}
-          disabled={planning === idea.id}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-        >
-          {planning === idea.id
-            ? <RefreshCw size={12} className="animate-spin" />
-            : <Terminal size={12} />}
+        <button onClick={() => onPlan(idea)} disabled={planning === idea.id}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50">
+          {planning === idea.id ? <RefreshCw size={12} className="animate-spin" /> : <Terminal size={12} />}
           Plan this
         </button>
       </div>
@@ -59,30 +135,218 @@ function IdeaCard({ idea, onPlan, onDelete, planning }) {
   )
 }
 
-export default function IdeasPage({ onNewIdea }) {
-  const [ideas,   setIdeas]   = useState([])
-  const [loading, setLoading] = useState(true)
-  const [planning, setPlanning] = useState(null)
-  const [search,  setSearch]  = useState('')
+// ─── Store flow (inline) ──────────────────────────────────────────────────────
+
+function StoreFlow({ onBack, onSaved }) {
+  const [step, setStep]         = useState('input')
+  const [rawText, setRawText]   = useState('')
+  const [isDragging, setDragging] = useState(false)
+  const [polished, setPolished] = useState(null)
+  const [extracted, setExtracted] = useState([])
+  const [error, setError]       = useState(null)
+  const fileRef = useRef()
+
+  const loadFile = (file) => {
+    const reader = new FileReader()
+    reader.onload = e => setRawText(e.target.result)
+    reader.readAsText(file)
+  }
+
+  const handlePolish = async () => {
+    if (!rawText.trim()) return
+    setError(null); setStep('polishing')
+    const result = await window.api.polishIdea(rawText)
+    if (!result.ok) { setError(result.error); setStep('input'); return }
+    setPolished({ title: result.title, summary: result.summary, tags: result.tags ?? [] })
+    setStep('canvas')
+  }
+
+  const handleExtract = async () => {
+    if (!rawText.trim()) return
+    setError(null); setStep('extracting')
+    const result = await window.api.extractIdeas(rawText)
+    if (!result.ok) { setError(result.error); setStep('input'); return }
+    setExtracted(result.ideas.map((idea, i) => ({ ...idea, _key: i, _include: true })))
+    setStep('multi')
+  }
+
+  const handleSaveSingle = async () => {
+    await window.api.saveIdea({ title: polished.title, summary: polished.summary, raw_text: rawText, tags: polished.tags, source: 'store' })
+    onSaved()
+  }
+
+  const handleSaveMulti = async () => {
+    for (const idea of extracted.filter(i => i._include)) {
+      await window.api.saveIdea({ title: idea.title, summary: idea.summary, raw_text: idea.excerpt ?? rawText.slice(0, 500), tags: idea.tags ?? [], source: 'extract' })
+    }
+    onSaved()
+  }
+
+  if (step === 'polishing' || step === 'extracting') {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <Loader size={28} className="animate-spin text-primary mx-auto mb-3" />
+          <p className="text-gray-600 text-sm">{step === 'polishing' ? 'Polishing your idea…' : 'Extracting ideas from text…'}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'canvas') {
+    return (
+      <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full">
+        <button onClick={() => setStep('input')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-5">
+          <ArrowLeft size={14} /> Back
+        </button>
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Review & edit</h2>
+        {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Title</label>
+            <input value={polished.title} onChange={e => setPolished(p => ({ ...p, title: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Summary</label>
+            <textarea value={polished.summary} onChange={e => setPolished(p => ({ ...p, summary: e.target.value }))} rows={5}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Tags (comma-separated)</label>
+            <input value={polished.tags.join(', ')}
+              onChange={e => setPolished(p => ({ ...p, tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSaveSingle}
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+              <Check size={14} /> Save Idea
+            </button>
+            <button onClick={() => setStep('input')} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">Discard</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'multi') {
+    return (
+      <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full">
+        <button onClick={() => setStep('input')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-5">
+          <ArrowLeft size={14} /> Back
+        </button>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Found {extracted.length} ideas</h2>
+        <p className="text-sm text-gray-500 mb-4">Uncheck any you don't want to save.</p>
+        {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+        <div className="space-y-3 mb-6">
+          {extracted.map((idea, i) => (
+            <div key={idea._key} className={`p-4 border rounded-xl transition-colors ${idea._include ? 'border-primary/30 bg-indigo-50/40' : 'border-gray-100 bg-gray-50 opacity-50'}`}>
+              <div className="flex items-start gap-3">
+                <input type="checkbox" checked={idea._include}
+                  onChange={e => setExtracted(prev => prev.map((it, j) => j === i ? { ...it, _include: e.target.checked } : it))}
+                  className="mt-1 accent-primary" />
+                <div className="flex-1">
+                  <input value={idea.title}
+                    onChange={e => setExtracted(prev => prev.map((it, j) => j === i ? { ...it, title: e.target.value } : it))}
+                    className="w-full font-medium text-sm text-gray-900 bg-transparent border-b border-transparent focus:border-gray-300 focus:outline-none mb-1" />
+                  <p className="text-xs text-gray-500 leading-relaxed">{idea.summary}</p>
+                  {idea.tags?.length > 0 && (
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {idea.tags.map(t => <span key={t} className="px-1.5 py-0.5 rounded-full text-[10px] bg-white text-indigo-500 border border-indigo-100">{t}</span>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={handleSaveMulti}
+            className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+            <Check size={14} /> Save {extracted.filter(i => i._include).length} ideas
+          </button>
+          <button onClick={() => setStep('input')} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">Discard</button>
+        </div>
+      </div>
+    )
+  }
+
+  // Input step
+  return (
+    <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-5">
+        <ArrowLeft size={14} /> Back to Ideas
+      </button>
+      <h2 className="text-lg font-bold text-gray-900 mb-1">Store an idea</h2>
+      <p className="text-sm text-gray-500 mb-4">Paste a rough note, or drop a conversation file / Google Keep export.</p>
+      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+
+      <div
+        className={`relative rounded-xl border-2 border-dashed transition-colors mb-4 ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'}`}
+        onDragOver={e => { e.preventDefault(); setDragging(true) }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) loadFile(f) }}
+      >
+        <textarea value={rawText} onChange={e => setRawText(e.target.value)}
+          placeholder="Paste text here, or drag & drop a .txt / .json file..."
+          rows={10}
+          className="w-full px-4 py-3 bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none resize-none" />
+        {isDragging && (
+          <div className="absolute inset-0 flex items-center justify-center bg-primary/5 rounded-xl pointer-events-none">
+            <div className="text-primary font-medium flex items-center gap-2"><Upload size={18} /> Drop file to load</div>
+          </div>
+        )}
+      </div>
+
+      <input ref={fileRef} type="file" accept=".txt,.json,.md" className="hidden"
+        onChange={e => { if (e.target.files[0]) loadFile(e.target.files[0]) }} />
+      <button onClick={() => fileRef.current.click()} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 mb-5 block">
+        Browse for file
+      </button>
+
+      <div className="flex gap-2">
+        <button onClick={handlePolish} disabled={!rawText.trim()}
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark disabled:opacity-40 disabled:cursor-not-allowed">
+          <Lightbulb size={14} /> Polish single idea
+        </button>
+        <button onClick={handleExtract} disabled={!rawText.trim()}
+          className="flex items-center gap-1.5 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-40 disabled:cursor-not-allowed">
+          Extract all ideas
+        </button>
+      </div>
+      <p className="text-xs text-gray-400 mt-2">
+        Use <b>Polish</b> for a single short note. Use <b>Extract all</b> for long conversation logs.
+      </p>
+    </div>
+  )
+}
+
+// ─── Ideas page ───────────────────────────────────────────────────────────────
+
+export default function IdeasPage() {
+  const [ideas,     setIdeas]     = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [planning,  setPlanning]  = useState(null)
+  const [search,    setSearch]    = useState('')
   const [activeTag, setActiveTag] = useState(null)
+  const [editing,   setEditing]   = useState(null)
+  const [storing,   setStoring]   = useState(false)
 
   const load = async () => {
     setLoading(true)
-    const data = await window.api.getIdeas()
-    setIdeas(data)
+    setIdeas(await window.api.getIdeas())
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
 
-  // Collect all unique tags across all ideas
   const allTags = useMemo(() => {
     const set = new Set()
     ideas.forEach(i => (i.tags ?? []).forEach(t => set.add(t)))
     return [...set].sort()
   }, [ideas])
 
-  // Filtered list
   const filtered = useMemo(() => {
     let result = ideas
     if (search.trim()) {
@@ -93,9 +357,7 @@ export default function IdeasPage({ onNewIdea }) {
         (i.tags ?? []).some(t => t.toLowerCase().includes(q))
       )
     }
-    if (activeTag) {
-      result = result.filter(i => (i.tags ?? []).includes(activeTag))
-    }
+    if (activeTag) result = result.filter(i => (i.tags ?? []).includes(activeTag))
     return result
   }, [ideas, search, activeTag])
 
@@ -110,6 +372,16 @@ export default function IdeasPage({ onNewIdea }) {
     setIdeas(prev => prev.filter(i => i.id !== id))
   }
 
+  const handleSaveEdit = async (updated) => {
+    await window.api.updateIdea(updated)
+    setIdeas(prev => prev.map(i => i.id === updated.id ? { ...i, ...updated } : i))
+  }
+
+  const handleStored = () => {
+    setStoring(false)
+    load()
+  }
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -118,8 +390,21 @@ export default function IdeasPage({ onNewIdea }) {
     )
   }
 
+  // Store flow takes over the full content area
+  if (storing) {
+    return (
+      <div className="flex-1 flex flex-col">
+        <StoreFlow onBack={() => setStoring(false)} onSaved={handleStored} />
+      </div>
+    )
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
+      {editing && (
+        <EditModal idea={editing} onSave={handleSaveEdit} onClose={() => setEditing(null)} />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -130,12 +415,9 @@ export default function IdeasPage({ onNewIdea }) {
               : `${ideas.length} stored idea${ideas.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <button
-          onClick={onNewIdea}
-          className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
-        >
-          <Plus size={15} />
-          Store Idea
+        <button onClick={() => setStoring(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors">
+          <Plus size={15} /> Store Idea
         </button>
       </div>
 
@@ -144,29 +426,20 @@ export default function IdeasPage({ onNewIdea }) {
         <div className="mb-5 space-y-2">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search ideas…"
-              className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ideas…"
+              className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
             {search && (
-              <button onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <X size={14} />
               </button>
             )}
           </div>
-
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {allTags.map(tag => (
-                <button key={tag}
-                  onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+                <button key={tag} onClick={() => setActiveTag(activeTag === tag ? null : tag)}
                   className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                    activeTag === tag
-                      ? 'bg-indigo-500 text-white'
-                      : 'bg-indigo-50 text-indigo-500 hover:bg-indigo-100'
+                    activeTag === tag ? 'bg-indigo-500 text-white' : 'bg-indigo-50 text-indigo-500 hover:bg-indigo-100'
                   }`}>
                   {tag}
                 </button>
@@ -181,8 +454,8 @@ export default function IdeasPage({ onNewIdea }) {
           <div className="text-center py-20 text-gray-400">
             <Lightbulb size={36} className="mx-auto mb-3 opacity-30" />
             <p className="font-medium">No ideas yet</p>
-            <p className="text-sm mt-1">Paste a note or drop a file to store your first idea</p>
-            <button onClick={onNewIdea}
+            <p className="text-sm mt-1">Click Store Idea to capture your first one</p>
+            <button onClick={() => setStoring(true)}
               className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors">
               Store an idea
             </button>
@@ -200,13 +473,8 @@ export default function IdeasPage({ onNewIdea }) {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map(idea => (
-            <IdeaCard
-              key={idea.id}
-              idea={idea}
-              planning={planning}
-              onPlan={handlePlan}
-              onDelete={handleDelete}
-            />
+            <IdeaCard key={idea.id} idea={idea} planning={planning}
+              onPlan={handlePlan} onDelete={handleDelete} onEdit={setEditing} />
           ))}
         </div>
       )}

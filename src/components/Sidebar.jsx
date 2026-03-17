@@ -5,7 +5,7 @@ const NAV = [
   { id: 'tools',     label: 'Tools',     icon: LayoutGrid },
   { id: 'ideas',     label: 'Ideas',     icon: Lightbulb },
   { id: 'village',   label: 'Village',   icon: Users },
-  { id: 'new',       label: 'New',       icon: Plus },
+  { id: 'new',       label: 'New Tool',  icon: Plus },
   { id: 'workflows', label: 'Workflows', icon: GitBranch },
   { id: 'stories',   label: 'Stories',   icon: BookOpen },
   { id: 'settings',  label: 'Settings',  icon: Settings },

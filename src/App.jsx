@@ -10,7 +10,7 @@ import StoriesPage from './components/StoriesPage'
 
 export default function App() {
   const [page, setPage]           = useState('tools')
-  const [newMode, setNewMode]     = useState(null)  // 'store' | 'plan' | null
+  const [newMode, setNewMode]     = useState(null)
   const [villageUnread, setVillageUnread] = useState(0)
 
   useEffect(() => {
@@ -19,11 +19,6 @@ export default function App() {
     const id = setInterval(poll, 30000)
     return () => clearInterval(id)
   }, [])
-
-  const goNew = (mode = null) => {
-    setNewMode(mode)
-    setPage('new')
-  }
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
@@ -35,15 +30,13 @@ export default function App() {
 
       <main className="flex-1 flex flex-col min-w-0 titlebar-safe">
         {page === 'tools' && (
-          <ToolGrid onNewTool={() => goNew('plan')} />
+          <ToolGrid onNewTool={() => { setNewMode('plan'); setPage('new') }} />
         )}
-        {page === 'ideas' && (
-          <IdeasPage onNewIdea={() => goNew('store')} />
-        )}
+        {page === 'ideas' && <IdeasPage />}
         {page === 'new' && (
           <NewFlow
-            defaultMode={newMode}
-            onBack={() => setPage(newMode === 'store' ? 'ideas' : 'tools')}
+            defaultMode={newMode ?? 'plan'}
+            onBack={() => setPage('tools')}
             onIdeaSaved={() => setPage('ideas')}
           />
         )}
