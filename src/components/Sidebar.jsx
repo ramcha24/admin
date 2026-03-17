@@ -1,9 +1,10 @@
 import React from 'react'
-import { LayoutGrid, Lightbulb, Plus, GitBranch, Settings, Users, BookOpen } from 'lucide-react'
+import { LayoutGrid, Lightbulb, Plus, GitBranch, Settings, Users, BookOpen, CircleDot } from 'lucide-react'
 
 const NAV = [
   { id: 'tools',     label: 'Tools',     icon: LayoutGrid },
   { id: 'ideas',     label: 'Ideas',     icon: Lightbulb },
+  { id: 'issues',    label: 'Issues',    icon: CircleDot },
   { id: 'village',   label: 'Village',   icon: Users },
   { id: 'new',       label: 'New Tool',  icon: Plus },
   { id: 'workflows', label: 'Workflows', icon: GitBranch },
@@ -11,7 +12,7 @@ const NAV = [
   { id: 'settings',  label: 'Settings',  icon: Settings },
 ]
 
-export default function Sidebar({ page, setPage, villageUnread = 0 }) {
+export default function Sidebar({ page, setPage, villageUnread = 0, issueCount = 0 }) {
   return (
     <aside className="w-52 bg-sidebar flex flex-col titlebar-safe select-none shrink-0">
       {/* Logo */}
@@ -27,7 +28,9 @@ export default function Sidebar({ page, setPage, villageUnread = 0 }) {
       <nav className="flex-1 px-2 py-3 space-y-0.5">
         {NAV.map(({ id, label, icon: Icon, disabled }) => {
           const active = page === id
-          const badge  = id === 'village' && villageUnread > 0 ? villageUnread : null
+          const badge  = id === 'village' && villageUnread > 0 ? villageUnread
+                       : id === 'issues' && issueCount > 0 ? issueCount
+                       : null
           return (
             <button
               key={id}

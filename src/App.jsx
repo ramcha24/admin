@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import ToolGrid from './components/ToolGrid'
 import IdeasPage from './components/IdeasPage'
+import IssuesPage from './components/IssuesPage'
 import NewFlow from './components/NewFlow'
 import SettingsPage from './components/SettingsPage'
 import VillagePage from './components/VillagePage'
@@ -12,6 +13,18 @@ export default function App() {
   const [page, setPage]           = useState('tools')
   const [newMode, setNewMode]     = useState(null)
   const [villageUnread, setVillageUnread] = useState(0)
+  const [issueCount, setIssueCount] = useState(0)
+
+  const refreshIssueCount = () =>
+    window.api.getIssues().then(all => setIssueCount(all.filter(i => i.status === 'open').length)).catch(() => {})
+
+  useEffect(() => {
+    const pollVillage = () => window.api.getVillageUnreadCount().then(setVillageUnread).catch(() => {})
+    pollVillage()
+    refreshIssueCount()
+    const id = setInterval(pollVillage, 30000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     const poll = () => window.api.getVillageUnreadCount().then(setVillageUnread).catch(() => {})
@@ -26,6 +39,7 @@ export default function App() {
         page={page}
         setPage={(p) => { setNewMode(null); if (p === 'village') setVillageUnread(0); setPage(p) }}
         villageUnread={villageUnread}
+        issueCount={issueCount}
       />
 
       <main className="flex-1 flex flex-col min-w-0 titlebar-safe">
@@ -33,6 +47,7 @@ export default function App() {
           <ToolGrid onNewTool={() => { setNewMode('plan'); setPage('new') }} />
         )}
         {page === 'ideas' && <IdeasPage />}
+        {page === 'issues' && <IssuesPage onCountChange={setIssueCount} />}
         {page === 'new' && (
           <NewFlow
             defaultMode={newMode ?? 'plan'}

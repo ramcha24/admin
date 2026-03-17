@@ -168,6 +168,20 @@ function createSchema() {
   setDefault.run('smtp_pass', '')
   setDefault.run('smtp_from', '')
 
+  // Issues tracker
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS issues (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      tool_id     TEXT NOT NULL,
+      type        TEXT NOT NULL DEFAULT 'bug',
+      title       TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      status      TEXT NOT NULL DEFAULT 'open',
+      created_at  TEXT DEFAULT (datetime('now')),
+      resolved_at TEXT
+    );
+  `)
+
   // Tool dev-tracking columns (additive migrations)
   try { db.exec("ALTER TABLE tool_registry ADD COLUMN dev_phase TEXT NOT NULL DEFAULT 'planning'") } catch (_) {}
   try { db.exec("ALTER TABLE tool_registry ADD COLUMN dev_summary TEXT NOT NULL DEFAULT ''") } catch (_) {}

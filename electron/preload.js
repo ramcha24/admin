@@ -71,6 +71,13 @@ contextBridge.exposeInMainWorld('api', {
   // Shell
   openExternal:     (url)                => invoke('shell:openExternal', url),
 
+  // Issues
+  getIssues:        (toolId)             => invoke('issues:getAll', toolId),
+  saveIssue:        (data)               => invoke('issues:save', data),
+  updateIssue:      (data)               => invoke('issues:update', data),
+  deleteIssue:      (id)                 => invoke('issues:delete', id),
+  startIssueSession:(id)                 => invoke('issues:startSession', id),
+
   // User stories
   getStories:       ()                   => invoke('stories:getAll'),
 

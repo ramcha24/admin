@@ -988,6 +988,58 @@ async function runWorkflows(eventType, sourceTool, payload) {
   }
 }
 
+// ─── Issues ───────────────────────────────────────────────────────────────────
+
+ipcMain.handle('issues:getAll', (_, toolId) => {
+  const db = getDb()
+  const rows = toolId
+    ? db.prepare('SELECT * FROM issues WHERE tool_id=? ORDER BY created_at DESC').all(toolId)
+    : db.prepare('SELECT * FROM issues ORDER BY created_at DESC').all()
+  return rows
+})
+
+ipcMain.handle('issues:save', (_, { tool_id, type, title, description }) => {
+  const db = getDb()
+  const result = db.prepare(
+    'INSERT INTO issues (tool_id, type, title, description) VALUES (?, ?, ?, ?)'
+  ).run(tool_id, type, title, description ?? '')
+  return db.prepare('SELECT * FROM issues WHERE id=?').get(result.lastInsertRowid)
+})
+
+ipcMain.handle('issues:update', (_, { id, title, description, status }) => {
+  const db = getDb()
+  const resolved_at = status === 'done' ? new Date().toISOString() : null
+  db.prepare(
+    'UPDATE issues SET title=COALESCE(?,title), description=COALESCE(?,description), status=COALESCE(?,status), resolved_at=? WHERE id=?'
+  ).run(title ?? null, description ?? null, status ?? null, resolved_at, id)
+  return db.prepare('SELECT * FROM issues WHERE id=?').get(id)
+})
+
+ipcMain.handle('issues:delete', (_, id) => {
+  getDb().prepare('DELETE FROM issues WHERE id=?').run(id)
+  return { ok: true }
+})
+
+ipcMain.handle('issues:startSession', async (_, id) => {
+  const db = getDb()
+  const issue = db.prepare('SELECT * FROM issues WHERE id=?').get(id)
+  if (!issue) return { ok: false, error: 'Issue not found' }
+
+  const tool = db.prepare('SELECT * FROM tool_registry WHERE id=?').get(issue.tool_id)
+  if (!tool) return { ok: false, error: 'Tool not found' }
+
+  const typeLabel = issue.type === 'bug' ? 'Bug fix' : 'Feature'
+  const desc = issue.description ? `\n\nContext: ${issue.description}` : ''
+  const prompt = `${typeLabel}: ${issue.title}${desc}\n\nDo ONLY this and nothing else.`
+  const escaped = prompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
+
+  const cmd = `cd '${tool.dir_path}' && claude "${escaped}"`
+  const script = `tell application "Terminal"\nactivate\ndo script "${cmd}"\nend tell`
+  return new Promise(resolve => {
+    execFile('osascript', ['-e', script], err => resolve({ ok: !err, error: err?.message }))
+  })
+})
+
 // ─── Digest ───────────────────────────────────────────────────────────────────
 
 ipcMain.handle('digest:runNow', async () => {

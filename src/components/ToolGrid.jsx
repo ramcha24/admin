@@ -130,12 +130,26 @@ function EditDevModal({ tool, onSave, onClose }) {
 // ─── Tool grid ────────────────────────────────────────────────────────────────
 
 export default function ToolGrid({ onNewTool }) {
-  const [tools,    setTools]    = useState([])
-  const [status,   setStatus]   = useState({})
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState(null)
-  const [filter,   setFilter]   = useState('all')
-  const [editing,  setEditing]  = useState(null)
+  const [tools,       setTools]       = useState([])
+  const [status,      setStatus]      = useState({})
+  const [loading,     setLoading]     = useState(true)
+  const [error,       setError]       = useState(null)
+  const [filter,      setFilter]      = useState('all')
+  const [editing,     setEditing]     = useState(null)
+  const [issueCounts, setIssueCounts] = useState({}) // { toolId: { bug: N, feature: N } }
+
+  const loadIssueCounts = useCallback(async () => {
+    try {
+      const all = await window.api.getIssues()
+      const counts = {}
+      for (const issue of all) {
+        if (issue.status !== 'open') continue
+        if (!counts[issue.tool_id]) counts[issue.tool_id] = {}
+        counts[issue.tool_id][issue.type] = (counts[issue.tool_id][issue.type] ?? 0) + 1
+      }
+      setIssueCounts(counts)
+    } catch {}
+  }, [])
 
   const discover = useCallback(async () => {
     setLoading(true)
@@ -145,12 +159,13 @@ export default function ToolGrid({ onNewTool }) {
       setTools(found)
       const s = await window.api.getToolStatus()
       setStatus(s)
+      await loadIssueCounts()
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [loadIssueCounts])
 
   useEffect(() => {
     discover()
@@ -284,6 +299,8 @@ export default function ToolGrid({ onNewTool }) {
               onStop={() => handleStop(tool.id)}
               onResume={handleResume}
               onEdit={setEditing}
+              issueCounts={issueCounts[tool.id] ?? {}}
+              onIssueAdded={loadIssueCounts}
             />
           ))}
         </div>
