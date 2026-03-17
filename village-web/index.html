@@ -326,25 +326,31 @@
         </div>`
     }
 
+    const TOOL_BADGE = {
+      grove: '🌿 Grove',
+      think: '🧠 Think',
+      tantu: '🧵 Tantu',
+    }
+
     function renderFeed(data) {
       const { member, identity, items } = data
 
-      // Separate streak card from session feed
-      const sessions  = items.filter(i => i.type === 'session_logged')
+      // Separate streak card from the activity feed
+      const feedItems  = items.filter(i => i.type !== 'streak_update')
       const streakItem = items.find(i => i.type === 'streak_update')
 
       const streakHtml = streakItem ? renderStreakCard(items) : ''
 
-      const sessionHtml = sessions.length === 0
+      const feedHtml = feedItems.length === 0
         ? `<div class="empty">
              <div class="empty-icon">📖</div>
-             <div class="empty-title">No sessions yet</div>
-             <p>Activity will appear here when ${escHtml(identity?.display_name ?? 'they')} log study sessions in Grove.</p>
+             <div class="empty-title">No activity yet</div>
+             <p>Activity will appear here when ${escHtml(identity?.display_name ?? 'they')} use their tools.</p>
            </div>`
-        : sessions.map(item => `
+        : feedItems.map(item => `
             <div class="activity-card" id="card-${escHtml(item.id)}">
               <div class="activity-meta">
-                <span class="activity-tool-badge">🌿 Grove</span>
+                <span class="activity-tool-badge">${escHtml(TOOL_BADGE[item.tool] ?? item.tool)}</span>
                 <span class="activity-time">${timeAgo(item.created_at)}</span>
               </div>
               <div class="activity-text">${escHtml(item.rendered)}</div>
@@ -368,7 +374,7 @@
         ${streakHtml}
 
         <div class="section-label">Recent Activity</div>
-        ${sessionHtml}
+        ${feedHtml}
 
         <div class="footer">
           <p>This is a private feed — only you can see this.</p>
