@@ -165,13 +165,30 @@ function StoreFlow({ onBack, onSaved }) {
     // Read as base64 for storage
     const b64Reader = new FileReader()
     b64Reader.onload = e => {
-      const base64 = e.target.result.split(',')[1] // strip data URL prefix
+      const base64 = e.target.result.split(',')[1]
       setAttachedFile({ filename: file.name, dataBase64: base64 })
     }
     b64Reader.readAsDataURL(file)
-    // Read as text for the textarea
+    // Read as text and immediately kick off extraction — don't dump into textarea
     const textReader = new FileReader()
-    textReader.onload = e => setRawText(e.target.result)
+    textReader.onload = async (e) => {
+      const text = e.target.result
+      setError(null)
+      setStep('extracting')
+      const result = await window.api.extractIdeas(text)
+      if (!result.ok) { setError(result.error); setStep('input'); return }
+      const ideas = result.ideas ?? []
+      if (ideas.length === 1) {
+        // Single idea — go straight to the review canvas
+        setPolished({ title: ideas[0].title, summary: ideas[0].summary, tags: ideas[0].tags ?? [] })
+        setRawText(text)
+        setStep('canvas')
+      } else {
+        setExtracted(ideas.map((idea, i) => ({ ...idea, _key: i, _include: true, _mergeSelect: false })))
+        setRawText(text)
+        setStep('multi')
+      }
+    }
     textReader.readAsText(file)
   }
 
@@ -220,7 +237,7 @@ function StoreFlow({ onBack, onSaved }) {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <Loader size={28} className="animate-spin text-primary mx-auto mb-3" />
-          <p className="text-gray-600 text-sm">{step === 'polishing' ? 'Polishing your idea…' : 'Extracting ideas from text…'}</p>
+          <p className="text-gray-600 text-sm">{step === 'polishing' ? 'Polishing your idea…' : attachedFile ? `Reading ${attachedFile.filename}…` : 'Extracting ideas from text…'}</p>
         </div>
       </div>
     )
@@ -384,7 +401,7 @@ function StoreFlow({ onBack, onSaved }) {
         onDragLeave={() => setDragging(false)}
         onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) loadFile(f) }}
       >
-        <textarea value={rawText} onChange={e => { setRawText(e.target.value); if (attachedFile) setAttachedFile(null) }}
+        <textarea value={rawText} onChange={e => setRawText(e.target.value)}
           placeholder="Paste text here, or drag & drop a .txt / .md / .pdf / .json file…"
           rows={10}
           className="w-full px-4 py-3 bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none resize-none" />
