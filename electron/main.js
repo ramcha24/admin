@@ -634,6 +634,11 @@ ipcMain.handle('ideas:delete', (_, id) => {
   return { ok: true }
 })
 
+// Strip markdown code fences that some models add despite being told not to
+function stripJsonFences(text) {
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+}
+
 // Polish raw text into a structured idea using the configured LLM
 ipcMain.handle('ideas:polish', async (_, rawText) => {
   const SYSTEM = `You are an idea curator. The user will give you a rough note or excerpt. Your job is to extract and structure the core idea into JSON with these fields:
@@ -648,7 +653,7 @@ Respond with only valid JSON, no markdown fences.`
       [{ role: 'user', content: rawText }],
       { systemPrompt: SYSTEM, maxTokens: 512 }
     )
-    const parsed = JSON.parse(text)
+    const parsed = JSON.parse(stripJsonFences(text))
     return { ok: true, ...parsed }
   } catch (e) {
     return { ok: false, error: e.message }
@@ -670,7 +675,7 @@ Respond with a JSON array of these objects, no markdown fences.`
       [{ role: 'user', content: rawText.slice(0, 12000) }], // cap to ~12k chars
       { systemPrompt: SYSTEM, maxTokens: 2048 }
     )
-    const parsed = JSON.parse(text)
+    const parsed = JSON.parse(stripJsonFences(text))
     return { ok: true, ideas: parsed }
   } catch (e) {
     return { ok: false, error: e.message }
