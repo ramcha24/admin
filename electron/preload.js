@@ -34,14 +34,24 @@ contextBridge.exposeInMainWorld('api', {
   getAllSettings:    ()                   => invoke('settings:getAll'),
   setSetting:       (key, value)         => invoke('settings:set', { key, value }),
 
-  // Village
-  getVillageMembers:  ()                         => invoke('village:getMembers'),
-  addVillageMember:   (data)                     => invoke('village:addMember', data),
-  setVillageAccess:   (data)                     => invoke('village:setAccess', data),
-  syncVillage:        ()                         => invoke('village:sync'),
-  getVillageStatus:   ()                         => invoke('village:getStatus'),
-  getVillageIdentity: ()                         => invoke('village:getIdentity'),
-  updateVillageIdentity: (data)                  => invoke('village:updateIdentity', data),
+  // Village — members
+  getVillageMembers:     ()       => invoke('village:getMembers'),
+  addVillageMember:      (data)   => invoke('village:addMember', data),
+  setVillageAccess:      (data)   => invoke('village:setAccess', data),
+  syncVillage:           ()       => invoke('village:sync'),
+  getVillageStatus:      ()       => invoke('village:getStatus'),
+  getVillageIdentity:    ()       => invoke('village:getIdentity'),
+  updateVillageIdentity: (data)   => invoke('village:updateIdentity', data),
+  // Village — inbox
+  getVillageInteractions: ()      => invoke('village:getInteractions'),
+  markVillageRead:        (ids)   => invoke('village:markRead', ids),
+  getVillageUnreadCount:  ()      => invoke('village:getUnreadCount'),
+  villageReply:           (data)  => invoke('village:reply', data),
+  // Village — tags
+  getVillageTags:        ()       => invoke('village:getTags'),
+  saveVillageTag:        (data)   => invoke('village:saveTag', data),
+  deleteVillageTag:      (id)     => invoke('village:deleteTag', id),
+  assignVillageTag:      (data)   => invoke('village:assignTag', data),
 
   // Shell
   openExternal:     (url)                => invoke('shell:openExternal', url),

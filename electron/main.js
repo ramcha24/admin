@@ -735,6 +735,85 @@ ipcMain.handle('village:updateIdentity', (_, { username, display_name, avatar_em
   return { ok: true }
 })
 
+ipcMain.handle('village:getInteractions', () => {
+  const db = getDb()
+  const rows = db.prepare(`
+    SELECT vi.*, vm.name as member_name, vm.avatar_emoji as member_avatar
+    FROM village_interactions vi
+    LEFT JOIN village_members vm ON vm.id = vi.member_id
+    ORDER BY vi.created_at DESC
+    LIMIT 200
+  `).all()
+  return rows.map(r => ({ ...r, payload: JSON.parse(r.payload ?? '{}') }))
+})
+
+ipcMain.handle('village:markRead', (_, ids) => {
+  const db = getDb()
+  const stmt = db.prepare(
+    "UPDATE village_interactions SET read_at = datetime('now') WHERE id = ? AND read_at IS NULL"
+  )
+  for (const id of ids) stmt.run(id)
+  return { ok: true }
+})
+
+ipcMain.handle('village:getUnreadCount', () => {
+  return getDb().prepare(
+    'SELECT COUNT(*) as n FROM village_interactions WHERE read_at IS NULL'
+  ).get().n
+})
+
+ipcMain.handle('village:reply', (_, { activityId, body }) => {
+  const db = getDb()
+  const identity = db.prepare('SELECT * FROM village_identity WHERE id=1').get()
+  const id = `reply-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  db.prepare(`
+    INSERT INTO village_interactions (id, activity_id, member_id, member_name, type, payload, read_at)
+    VALUES (?, ?, 'owner', ?, 'reply', ?, datetime('now'))
+  `).run(id, activityId, identity?.display_name ?? 'You', JSON.stringify({ body }))
+  return { ok: true, id }
+})
+
+ipcMain.handle('village:getTags', () => {
+  const db = getDb()
+  const tags = db.prepare('SELECT * FROM village_tags ORDER BY name ASC').all()
+  const defaults = db.prepare('SELECT * FROM village_tag_defaults').all()
+  return tags.map(t => ({
+    ...t,
+    defaults: defaults.filter(d => d.tag_id === t.id),
+  }))
+})
+
+ipcMain.handle('village:saveTag', (_, { id, name, emoji, defaults: defs = [] }) => {
+  const db = getDb()
+  const tagId = id ?? `tag-${Date.now()}`
+  if (id) {
+    db.prepare('UPDATE village_tags SET name=?, emoji=? WHERE id=?').run(name, emoji ?? '🏷️', id)
+  } else {
+    db.prepare('INSERT INTO village_tags (id, name, emoji) VALUES (?, ?, ?)').run(tagId, name, emoji ?? '🏷️')
+  }
+  // Sync defaults: delete existing then re-insert
+  db.prepare('DELETE FROM village_tag_defaults WHERE tag_id=?').run(tagId)
+  for (const { tool_id, level } of defs) {
+    if (level) {
+      db.prepare('INSERT INTO village_tag_defaults (tag_id, tool_id, level) VALUES (?, ?, ?)').run(tagId, tool_id, level)
+    }
+  }
+  return { ok: true, id: tagId }
+})
+
+ipcMain.handle('village:deleteTag', (_, id) => {
+  const db = getDb()
+  db.prepare('DELETE FROM village_tag_defaults WHERE tag_id=?').run(id)
+  db.prepare('UPDATE village_members SET tag_id=NULL WHERE tag_id=?').run(id)
+  db.prepare('DELETE FROM village_tags WHERE id=?').run(id)
+  return { ok: true }
+})
+
+ipcMain.handle('village:assignTag', (_, { memberId, tagId }) => {
+  getDb().prepare('UPDATE village_members SET tag_id=? WHERE id=?').run(tagId ?? null, memberId)
+  return { ok: true }
+})
+
 // ─── Shell ────────────────────────────────────────────────────────────────────
 
 ipcMain.handle('shell:openExternal', (_, url) => {
