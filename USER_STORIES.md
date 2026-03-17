@@ -128,9 +128,9 @@ Acceptance criteria:
 **As a user, I can open the test villager URL in an incognito window, so that I can see exactly what a member sees before sharing real links.**
 
 Acceptance criteria:
-- A test villager (`🧪 Village Tester`) is pre-seeded with `grove: reader` access
+- A test villager (`🧪 Village Tester`) is pre-seeded with reader access for registered tools
 - The test URL is displayed in the server status panel with copy and open buttons
-- The feed at that URL shows Grove sessions and streak card visible to a reader
+- The feed at that URL shows activity visible to a reader
 
 ### 3.5 Edit a member's access after adding them
 **As a user, I can edit a member's email, tag, and per-tool access levels after they've been added, so that I can adjust permissions as relationships evolve.**
@@ -238,23 +238,23 @@ Acceptance criteria:
 
 ## 6. Village — Activity Feed (Web App)
 
-> Tags: admin, village, grove, think
+> Tags: admin, village
 
 ### 6.1 Members see personalised activity based on their access level
 **As a village member, I see only the information I'm authorised to see based on my access level, so that privacy is preserved.**
 
 Acceptance criteria:
-- follower: sees only "Ram studied today" (no details)
-- reader: sees course title and duration
-- commenter: also sees session notes
-- collaborator: sees all details including notes
+- follower: sees only a summary (no details)
+- reader: sees item title and duration
+- commenter: also sees notes
+- collaborator: sees all details
 - Opening a URL for a member who doesn't exist returns a "Member not found" error
 
 ### 6.2 Streak card appears when there is an active study streak
 **As a village member, I can see a streak card at the top of the feed, so that I get a sense of momentum.**
 
 Acceptance criteria:
-- Streak card appears when Grove has logged sessions on consecutive days
+- Streak card appears when a registered tool has logged activity on consecutive days
 - Shows streak day count and hours this week (for reader+)
 - Card does not appear if streak is 0
 
@@ -281,14 +281,14 @@ Acceptance criteria:
 
 ## 7. Village — Sync
 
-> Tags: admin, grove, think
+> Tags: admin
 
 ### 7.1 Manual sync
-**As a user, I can click the sync button in Village, so that I can pull in the latest Grove activity on demand.**
+**As a user, I can click the sync button in Village, so that I can pull in the latest tool activity on demand.**
 
 Acceptance criteria:
-- Clicking ↻ in the Village header reads grove.db for new sessions since last sync
-- New sessions appear in the local `village_activity` table
+- Clicking ↻ in the Village header reads registered tools' DBs for new activity since last sync
+- New activity rows appear in the local `village_activity` table
 - Streak snapshot for today is updated
 - Sync button animates while running, then stops
 
@@ -298,16 +298,15 @@ Acceptance criteria:
 Acceptance criteria:
 - Sync runs on a 5-minute interval set on server start
 - No user action required
-- Grove sessions logged while Admin is open appear in feeds within 5 minutes
+- Activity logged in any registered tool while Admin is open appears in feeds within 5 minutes
 
-### 7.3 Think activity appears in village feeds
-**As a user, when I conclude research nodes or start sessions in Think, this activity syncs to village feeds just like Grove sessions, so that my village sees my full research journey.**
+### 7.3 Activity from all registered tools appears in village feeds
+**As a user, activity from any registered tool syncs to village feeds, so that my village sees my full journey across all tools.**
 
 Acceptance criteria:
-- After syncing, concluded Think nodes appear as "node_concluded" activity items in the feed
-- New Think sessions appear as "research_started" items
-- Items are visible only to members with Think access at the appropriate level
-- Think activity respects the same follower/reader/commenter/collaborator template levels as Grove
+- Activity items from each tool appear in the feed with the correct type label
+- Items are visible only to members with access to that tool at the appropriate level
+- Each tool's activity respects the follower/reader/commenter/collaborator template levels declared in its `tool.json`
 
 ---
 
@@ -365,7 +364,7 @@ Acceptance criteria:
 **As a user, I can define a workflow that fires an action when a specific tool emits an event, so that I can automate repetitive responses to activity.**
 
 Acceptance criteria:
-- New workflow form shows: name, trigger tool (grove / think), trigger event (scoped to tool), action type
+- New workflow form shows: name, trigger tool (any registered tool), trigger event (scoped to tool), action type
 - Saving creates the workflow and it appears in the list
 - Available actions: `send_email_digest`, `sync_village`, `log_to_console`
 
@@ -373,8 +372,8 @@ Acceptance criteria:
 **As a user, when a tool publishes an event, any matching enabled workflows run automatically, so that automation is truly hands-free.**
 
 Acceptance criteria:
-- When `events:publish('grove', 'session_logged', payload)` is called, all enabled workflows with `trigger_tool=grove, trigger_event=session_logged` fire
-- `sync_village` action re-syncs grove activity and pushes to Supabase
+- When `events:publish('your-tool', 'event_type', payload)` is called, all enabled workflows matching `trigger_tool` and `trigger_event` fire
+- `sync_village` action re-syncs tool activity and pushes to Supabase
 - `send_email_digest` action sends digest to all eligible members
 - `log_to_console` action prints event payload to Electron's main process console
 - Workflow runner errors are caught and logged; they do not crash Admin

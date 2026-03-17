@@ -26,7 +26,7 @@ Admin is the sole hub; all other tools are spokes.
 
 **Event bus:** Admin owns the `events` table in admin.db. Tools publish via `events:publish(sourceId, eventType, payload)`; Admin writes the row and fires any matching enabled workflows synchronously.
 
-**Village pipeline:** Admin's `electron/village.js` runs a local HTTP server on port 7700. It pulls activity from grove.db (read-only) and think.db (read-only), upserts into `village_activity`, and serves member feeds. `electron/supabase.js` pushes activity and pre-computed per-member feeds to Supabase; pulls interactions back down. `electron/digest.js` sends a daily 8am email digest via Nodemailer.
+**Village pipeline:** Admin's `electron/village.js` runs a local HTTP server on port 7700. It reads each registered tool's SQLite DB (read-only), upserts activity into `village_activity`, and serves member feeds. `electron/supabase.js` pushes activity and pre-computed per-member feeds to Supabase; pulls interactions back down. `electron/digest.js` sends a daily 8am email digest via Nodemailer.
 
 **Tool discovery:** On launch, Admin walks the parent directory for subdirs containing `tool.json`, upserts each into `tool_registry`, and installs a post-commit hook in each tool's git repo via `installPostCommitHook()` in `electron/main.js`.
 
@@ -34,7 +34,7 @@ Admin is the sole hub; all other tools are spokes.
 
 1. **Tool Protocol Levels (L1/L2/L3):** A compliance ladder. L1 = tool.json + CLAUDE.md + git repo. L2 adds USER_STORIES.md, post-commit hook, dev-status.json. L3 adds a running service server and village activity emission. Admin checks and displays each tool's level in the tool grid.
 
-2. **Capability Gateway (port 7702):** A local HTTP broker. Tools declare services in `tool.json` under `"services"`. Admin routes capability calls to the right tool's service port. Currently admin's own gateway serves its two declared services; other tools run their own servers (grove:7710, think:7711, tantu:7712).
+2. **Capability Gateway (port 7702):** A local HTTP broker. Tools declare services in `tool.json` under `"services"`. Admin routes capability calls to the right tool's service port. Each registered tool runs its own service server on its declared port (e.g., 7710, 7711, 7712, …).
 
 3. **Event Bus:** The `events` table is the pub/sub backbone. Any tool can publish a typed event; Admin's workflow runner picks it up and executes configured actions (send_email_digest, sync_village, log_to_console). This is how loose coupling between tools is achieved without direct imports.
 
@@ -48,9 +48,8 @@ See `dev-status.json` for the LLM-generated phase summary. As of the last update
 
 ## What's Not Yet Built
 
-- **Think service handler:** Think declares a service server on port 7711 in tool.json, but `think/electron/main.js` has no HTTP server. Admin's capability routing to think is therefore broken.
-- **Tantu service handler:** Same situation — port 7712 declared, handler not implemented.
-- **Tantu village sync:** `electron/village.js` has a stub `syncTantuActivity` function but no implementation (tantu has no SQLite DB; it uses Markdown vault files).
+- **Some tool service handlers not yet implemented:** Some registered tools declare service servers in their `tool.json` but have not yet implemented the HTTP server handler. Admin's capability routing to those tools is non-functional until the handler is added.
+- **Non-SQLite tool village sync:** The village sync pipeline reads SQLite DBs from registered tools. For tools that use a different persistence model (e.g., Markdown files), a custom sync function is needed and may not be implemented yet.
 - **Full Supabase setup:** Requires user to supply URL + anon key in Settings. Until configured, all Supabase-dependent features (cloud village, deployed web app) are inert.
 - **Email digest:** Requires SMTP credentials in Settings. The cron and mailer code exist but won't fire without config.
 
