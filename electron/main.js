@@ -1533,9 +1533,22 @@ ipcMain.handle('issues:startSession', async (_, id) => {
   const safePpt    = promptPath.replace(/'/g, "'\\''")
   const safeSh     = shPath.replace(/'/g, "'\\''")
 
+  // Branch name: issue-{id}-{slugified-title}
+  const branchSlug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+  const branchName = `issue-${id}-${branchSlug}`
+
   fs.writeFileSync(promptPath, prompt)
-  fs.writeFileSync(shPath,
-    `#!/bin/bash\ncd '${safeDir}'\nclaude "$(cat '${safePpt}')"\nrm -f '${safePpt}' '${safeSh}'\n`
+  fs.writeFileSync(shPath, [
+    '#!/bin/bash',
+    `cd '${safeDir}'`,
+    // Create branch if not already on one for this issue
+    `CURRENT=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)`,
+    `if [ "$CURRENT" = "main" ] || [ "$CURRENT" = "master" ]; then`,
+    `  git checkout -b '${branchName}' 2>/dev/null || git checkout '${branchName}' 2>/dev/null`,
+    `fi`,
+    `claude "$(cat '${safePpt}')"`,
+    `rm -f '${safePpt}' '${safeSh}'`,
+  ].join('\n') + '\n'
   )
   fs.chmodSync(shPath, '755')
 
