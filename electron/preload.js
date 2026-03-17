@@ -121,7 +121,7 @@ contextBridge.exposeInMainWorld('api', {
   getVillagePreviewFeed:        (id)     => invoke('village:getPreviewFeed', id),
   /** Set (or revoke) a member's access level for a specific tool. @param {{memberId:string,toolId:string,level:string|null}} data @returns {Promise<{ok:boolean}>} */
   setVillageAccess:      (data)   => invoke('village:setAccess', data),
-  /** Trigger a full village sync (Grove + Think activity + Supabase push/pull). @returns {Promise<{ok:boolean,supabase:object}>} */
+  /** Trigger a full village sync (Grove + Think + Tantu activity + Supabase push/pull). @returns {Promise<{ok:boolean,supabase:object}>} */
   syncVillage:           ()       => invoke('village:sync'),
   /** Return the village server status and URLs. @returns {Promise<{running:boolean,port:number,url:string,testUrl:string}>} */
   getVillageStatus:      ()       => invoke('village:getStatus'),
