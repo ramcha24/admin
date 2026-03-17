@@ -14,6 +14,15 @@ const { scheduleDailyDigest, cancelDigestSchedule, runDailyDigest } = require('.
 const isDev = process.argv.includes('--dev')
 const ADMIN_PARENT = path.resolve(__dirname, '../../')  // /Users/ramcha1994/Admin
 
+if (isDev) app.setName('Admin-dev')
+
+// Single-instance: focus existing window instead of opening a second one.
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) { app.quit(); process.exit(0) }
+app.on('second-instance', () => {
+  if (win) { if (win.isMinimized()) win.restore(); win.focus() }
+})
+
 // Track running tool processes: { toolId: { pid, process } }
 const runningTools = {}
 
@@ -227,6 +236,13 @@ ipcMain.handle('tools:launch', (_, id) => {
   if (!tool) return { ok: false, error: 'Tool not found' }
   if (runningTools[id]) return { ok: false, error: 'Already running' }
 
+  // Prefer packaged stable .app if available; fall back to dev server
+  if (tool.launch_app) {
+    const safeApp = tool.launch_app.replace(/'/g, "'\\''")
+    spawn('bash', ['-c', `open '${safeApp}'`], { detached: true, stdio: 'ignore' }).unref()
+    return { ok: true, mode: 'stable' }
+  }
+
   const launchCmd = tool.launch_dev
   if (!launchCmd) return { ok: false, error: 'No launch command' }
 
@@ -243,7 +259,7 @@ ipcMain.handle('tools:launch', (_, id) => {
     delete runningTools[id]
   })
 
-  return { ok: true, pid: child.pid }
+  return { ok: true, mode: 'dev', pid: child.pid }
 })
 
 ipcMain.handle('tools:stop', (_, id) => {
@@ -266,6 +282,56 @@ ipcMain.handle('tools:updateDevInfo', (_, { id, dev_phase, dev_summary, next_ste
     WHERE id=?
   `).run(dev_phase, dev_summary, JSON.stringify(next_steps ?? []), stable_tag ?? null, id)
   return { ok: true }
+})
+
+ipcMain.handle('tools:publish', (_, id) => {
+  const db = getDb()
+  const tool = db.prepare('SELECT * FROM tool_registry WHERE id=?').get(id)
+  if (!tool) return { ok: false, error: 'Tool not found' }
+
+  // Scan release/ subdirectories for a packaged .app bundle
+  const releaseDir = path.join(tool.dir_path, 'release')
+  if (!fs.existsSync(releaseDir)) {
+    return { ok: false, error: 'No release/ directory found. Run npm run package first.' }
+  }
+
+  let appPath = null
+  for (const sub of fs.readdirSync(releaseDir)) {
+    const subDir = path.join(releaseDir, sub)
+    try { if (!fs.statSync(subDir).isDirectory()) continue } catch { continue }
+    for (const entry of fs.readdirSync(subDir)) {
+      if (entry.endsWith('.app')) { appPath = path.join(subDir, entry); break }
+    }
+    if (appPath) break
+  }
+
+  if (!appPath) {
+    return { ok: false, error: 'No .app bundle found in release/. Run npm run package first.' }
+  }
+
+  // Read version from package.json
+  let version = null
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(tool.dir_path, 'package.json'), 'utf8'))
+    version = pkg.version
+  } catch {}
+
+  // Write launch.app path back into tool.json
+  try {
+    const toolJsonPath = path.join(tool.dir_path, 'tool.json')
+    const manifest = JSON.parse(fs.readFileSync(toolJsonPath, 'utf8'))
+    manifest.launch = { ...(manifest.launch ?? {}), app: appPath }
+    if (version) manifest.version = version
+    fs.writeFileSync(toolJsonPath, JSON.stringify(manifest, null, 2) + '\n')
+  } catch (e) {
+    return { ok: false, error: `Could not update tool.json: ${e.message}` }
+  }
+
+  const stableTag = version ? `v${version}` : (tool.stable_tag ?? null)
+  db.prepare('UPDATE tool_registry SET launch_app=?, stable_tag=?, version=? WHERE id=?')
+    .run(appPath, stableTag, version ?? tool.version, id)
+
+  return { ok: true, appPath, version, stableTag }
 })
 
 ipcMain.handle('tools:resume', async (_, id) => {
@@ -346,7 +412,17 @@ const TEMPLATE_FILES = {
 const path = require('path')
 const { initDatabase, getDb } = require('./database')
 
+app.setName('${name}')
+
 const isDev = process.argv.includes('--dev')
+if (isDev) app.setName('${name}-dev')
+
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) { app.quit(); process.exit(0) }
+app.on('second-instance', () => {
+  if (win) { if (win.isMinimized()) win.restore(); win.focus() }
+})
+
 let win
 
 function createWindow() {

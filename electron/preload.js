@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   getToolStatus:    ()           => invoke('tools:status'),
   updateToolDevInfo:(data)       => invoke('tools:updateDevInfo', data),
   resumeTool:       (id)        => invoke('tools:resume', id),
+  publishTool:      (id)        => invoke('tools:publish', id),
 
   // New tool planning & scaffolding
   planTool:         (description)        => invoke('tools:plan', description),

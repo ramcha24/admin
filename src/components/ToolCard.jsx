@@ -96,6 +96,7 @@ export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onRes
   const [addingType, setAddingType] = useState(null) // 'bug' | 'feature' | null
   const isRunning = status === 'running'
   const isAdmin   = tool.id === 'admin'
+  const hasStable = !!tool.launch_app
   const nextSteps = tool.next_steps ?? []
   const openBugs     = issueCounts?.bug ?? 0
   const openFeatures = issueCounts?.feature ?? 0
@@ -217,10 +218,12 @@ export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onRes
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               isRunning
                 ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                : 'bg-primary/10 text-primary hover:bg-primary/20'
+                : hasStable
+                  ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                  : 'bg-primary/10 text-primary hover:bg-primary/20'
             }`}
           >
-            {isRunning ? <><Square size={12} /> Stop</> : <><Play size={12} /> Launch</>}
+            {isRunning ? <><Square size={12} /> Stop</> : <><Play size={12} /> {hasStable ? 'Launch' : 'Launch Dev'}</>}
           </button>
         )}
         <button

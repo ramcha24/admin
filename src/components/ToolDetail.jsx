@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   ArrowLeft, Play, Square, RotateCcw, Pencil, Tag, ShieldCheck,
   FileText, Code2, Bug, Plug, BookOpen, ChevronRight, ChevronDown,
-  RefreshCw, Check, Folder, File, AlertCircle, Sparkles, X,
+  RefreshCw, Check, Folder, File, AlertCircle, Sparkles, X, Package,
 } from 'lucide-react'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -553,12 +553,28 @@ function ServicesTab({ tool }) {
 export default function ToolDetail({ tool: initialTool, status, onBack, onLaunch, onStop, onResume, onEdit }) {
   const [tab, setTab] = useState('overview')
   const [tool, setTool] = useState(initialTool)
+  const [publishing, setPublishing] = useState(false)
+  const [publishMsg, setPublishMsg] = useState(null)
   const isRunning = status === 'running'
   const isAdmin   = tool.id === 'admin'
+  const hasStable = !!tool.launch_app
   const phase = PHASES[tool.dev_phase] ?? PHASES.planning
 
   // Refresh tool data when coming back to this detail
   useEffect(() => { setTool(initialTool) }, [initialTool])
+
+  const handlePublish = async () => {
+    setPublishing(true)
+    setPublishMsg(null)
+    const result = await window.api.publishTool(tool.id)
+    setPublishing(false)
+    if (result.ok) {
+      setTool(t => ({ ...t, launch_app: result.appPath, stable_tag: result.stableTag, version: result.version ?? t.version }))
+      setPublishMsg({ ok: true, text: `Published ${result.stableTag ?? result.version} — ${result.appPath.split('/').pop()}` })
+    } else {
+      setPublishMsg({ ok: false, text: result.error })
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -595,10 +611,18 @@ export default function ToolDetail({ tool: initialTool, status, onBack, onLaunch
 
           <div className="flex items-center gap-2 shrink-0">
             {!isAdmin && (
-              <button onClick={isRunning ? onStop : onLaunch}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isRunning?'bg-red-50 text-red-600 hover:bg-red-100':'bg-primary/10 text-primary hover:bg-primary/20'}`}>
-                {isRunning ? <><Square size={12}/> Stop</> : <><Play size={12}/> Launch</>}
-              </button>
+              <>
+                <button onClick={handlePublish} disabled={publishing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                  title="Scan release/ for a packaged .app and register it as the stable launch target">
+                  {publishing ? <RefreshCw size={12} className="animate-spin"/> : <Package size={12}/>}
+                  {hasStable ? 'Re-publish' : 'Publish Release'}
+                </button>
+                <button onClick={isRunning ? onStop : onLaunch}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isRunning?'bg-red-50 text-red-600 hover:bg-red-100':hasStable?'bg-emerald-100 text-emerald-700 hover:bg-emerald-200':'bg-primary/10 text-primary hover:bg-primary/20'}`}>
+                  {isRunning ? <><Square size={12}/> Stop</> : <><Play size={12}/> {hasStable ? 'Launch' : 'Launch Dev'}</>}
+                </button>
+              </>
             )}
             <button onClick={() => onResume(tool.id)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
@@ -609,6 +633,11 @@ export default function ToolDetail({ tool: initialTool, status, onBack, onLaunch
               <Pencil size={14}/>
             </button>
           </div>
+          {publishMsg && (
+            <div className={`mt-2 text-xs px-3 py-1.5 rounded-lg ${publishMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+              {publishMsg.text}
+            </div>
+          )}
         </div>
       </div>
 
