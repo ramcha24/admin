@@ -126,23 +126,23 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have focused on automating feature branch creation, release management, and improving the workflow for adding new tools. Specifically, the `release.sh` script is now used for automated packaging and pushing, and a pre-push hook enforces a feature branch workflow. Tool discovery and invocation capabilities have also been enhanced with a 'Try it' panel for easier testing.
+Recent commits have introduced multi-select functionality and auto-close behavior for issues, streamlining the issue tracking workflow. The `release.sh` script has been added for automated builds and deployments, and a feature branch workflow with pre-push hooks and tool use guards has been enforced for improved development practices. The village feed now renders all activity types with tool badges, enhancing the local social layer.
 
 **Next steps:**
-- Implement robust error handling and logging for the `release.sh` script to aid in debugging packaging issues.
-- Expand the 'Try it' panel to support more service types and provide clearer visual feedback on success/failure.
-- Document the schema for the 'capabilities' table in detail, including potential input types and validation rules.
-- Refactor the code for managing tool service contracts to improve modularity and reduce redundancy.
+- Implement robust error handling for the `release.sh` script to ensure reliable builds.
+- Expand the Service Contracts page with more detailed documentation and examples for different service types.
+- Investigate and resolve any performance bottlenecks in the village feed rendering, particularly with large activity datasets.
+- Add more comprehensive testing for the new feature branch workflow to ensure proper enforcement and prevent regressions.
 
 **Recent commits:**
-- `0bdbbd4` feat: auto-create feature branch on Build it, rename Fix it → Build it
+- `9837d0f` feat: multi-select issues and auto-close after Build it session
+- `b43eb9d` chore: release v1.0.7
+- `1a97a53` chore: update auto-generated files
+- `a66e9d8` feat: auto-create feature branch on Build it, rename Fix it → Build it (#10)
 - `1d80022` chore: release v1.0.6
 - `63ad8dd` chore: update auto-generated files
 - `edda2f4` chore: village-web feed renders all activity types with tool badges
 - `0b80023` chore: update auto-generated files
 - `e6670fb` feat: add release.sh to L2 compliance check and update TOOL_PROTOCOL.md (#9)
 - `33308eb` chore: release v1.0.5
-- `72bcf2e` Merge pull request #8 from ramcha24/feature/release-script-auto-push
-- `f23aa59` chore: update auto-generated files
-- `a6b7f58` release.sh: auto-push to origin after packaging
 <!-- STATUS:END -->

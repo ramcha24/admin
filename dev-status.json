@@ -1,11 +1,11 @@
 {
-  "last_commit": "0bdbbd4",
-  "updated_at": "2026-03-17T17:05:42.531Z",
-  "dev_summary": "Recent commits have focused on automating feature branch creation, release management, and improving the workflow for adding new tools. Specifically, the `release.sh` script is now used for automated packaging and pushing, and a pre-push hook enforces a feature branch workflow. Tool discovery and invocation capabilities have also been enhanced with a 'Try it' panel for easier testing.",
+  "last_commit": "9837d0f",
+  "updated_at": "2026-03-17T17:12:39.021Z",
+  "dev_summary": "Recent commits have introduced multi-select functionality and auto-close behavior for issues, streamlining the issue tracking workflow. The `release.sh` script has been added for automated builds and deployments, and a feature branch workflow with pre-push hooks and tool use guards has been enforced for improved development practices. The village feed now renders all activity types with tool badges, enhancing the local social layer.",
   "next_steps": [
-    "Implement robust error handling and logging for the `release.sh` script to aid in debugging packaging issues.",
-    "Expand the 'Try it' panel to support more service types and provide clearer visual feedback on success/failure.",
-    "Document the schema for the 'capabilities' table in detail, including potential input types and validation rules.",
-    "Refactor the code for managing tool service contracts to improve modularity and reduce redundancy."
+    "Implement robust error handling for the `release.sh` script to ensure reliable builds.",
+    "Expand the Service Contracts page with more detailed documentation and examples for different service types.",
+    "Investigate and resolve any performance bottlenecks in the village feed rendering, particularly with large activity datasets.",
+    "Add more comprehensive testing for the new feature branch workflow to ensure proper enforcement and prevent regressions."
   ]
 }
