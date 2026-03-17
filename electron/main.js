@@ -1065,3 +1065,25 @@ ipcMain.handle('seed:run', () => {
 
   return { ok: true, message: 'Sample data seeded successfully' }
 })
+
+ipcMain.handle('seed:clear', () => {
+  const db = getDb()
+  const SEED_TAG_IDS     = ['tag-family', 'tag-friends', 'tag-mentor']
+  const SEED_MEMBER_IDS  = ['member-alice', 'member-bob', 'member-priya', 'member-test']
+  const SEED_ACTIVITY_IDS = ['act-grove-1', 'act-grove-2', 'act-grove-3', 'act-think-1', 'act-think-2']
+  const SEED_INT_IDS     = ['int-1', 'int-2', 'int-3']
+  const SEED_WF_NAMES    = ['Auto-sync village on Grove session', 'Log Think conclusions to console', 'Weekly digest on Grove session (disabled)']
+
+  const placeholders = (arr) => arr.map(() => '?').join(',')
+
+  db.prepare(`DELETE FROM village_interactions WHERE id IN (${placeholders(SEED_INT_IDS)})`).run(...SEED_INT_IDS)
+  db.prepare(`DELETE FROM village_activity     WHERE id IN (${placeholders(SEED_ACTIVITY_IDS)})`).run(...SEED_ACTIVITY_IDS)
+  // Deleting members cascades to village_access and village_notifications
+  db.prepare(`DELETE FROM village_members WHERE id IN (${placeholders(SEED_MEMBER_IDS)})`).run(...SEED_MEMBER_IDS)
+  // Deleting tags cascades to village_tag_defaults; members already gone so no orphan tag_id issue
+  db.prepare(`DELETE FROM village_tags WHERE id IN (${placeholders(SEED_TAG_IDS)})`).run(...SEED_TAG_IDS)
+  db.prepare(`DELETE FROM ideas WHERE source = 'seed'`).run()
+  db.prepare(`DELETE FROM workflows WHERE name IN (${placeholders(SEED_WF_NAMES)})`).run(...SEED_WF_NAMES)
+
+  return { ok: true, message: 'Seed data removed' }
+})

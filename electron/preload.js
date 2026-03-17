@@ -74,4 +74,5 @@ contextBridge.exposeInMainWorld('api', {
 
   // Dev utilities
   runSeed:          ()                   => invoke('seed:run'),
+  clearSeed:        ()                   => invoke('seed:clear'),
 })

@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [sendingDigest, setSendingDigest] = useState(false)
   const [seedResult, setSeedResult] = useState(null)
   const [seeding, setSeeding] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   const runSeed = async () => {
     setSeeding(true)
@@ -19,6 +20,14 @@ export default function SettingsPage() {
     const r = await window.api.runSeed()
     setSeedResult(r)
     setSeeding(false)
+  }
+
+  const clearSeed = async () => {
+    setClearing(true)
+    setSeedResult(null)
+    const r = await window.api.clearSeed()
+    setSeedResult(r)
+    setClearing(false)
   }
 
   const sendDigest = async () => {
@@ -249,9 +258,13 @@ export default function SettingsPage() {
             Populate the database with sample data for testing. Safe to run multiple times (uses INSERT OR IGNORE).
           </p>
           <div className="flex items-center gap-3">
-            <button onClick={runSeed} disabled={seeding}
+            <button onClick={runSeed} disabled={seeding || clearing}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-40 transition-colors">
               <Database size={12} /> {seeding ? 'Seeding…' : 'Seed sample data'}
+            </button>
+            <button onClick={clearSeed} disabled={seeding || clearing}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs font-medium hover:bg-red-50 disabled:opacity-40 transition-colors">
+              <Database size={12} /> {clearing ? 'Clearing…' : 'Clear seed data'}
             </button>
             {seedResult && (
               <span className="text-xs text-gray-500">
