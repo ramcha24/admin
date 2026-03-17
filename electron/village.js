@@ -1,8 +1,9 @@
 /**
- * Village — local HTTP server + grove sync pipeline
+ * Village — local HTTP server + tool sync pipeline
  *
  * Serves the village web app on port 7700.
- * Reads from grove.db (read-only) to generate activity feed entries.
+ * Reads from grove.db and think.db (read-only) and tantu ledger files
+ * to generate activity feed entries.
  * No external dependencies — uses Node built-ins + better-sqlite3.
  */
 
@@ -225,6 +226,93 @@ function syncThinkActivity() {
   thinkDb.close()
 }
 
+// ─── Tantu sync pipeline ──────────────────────────────────────────────────────
+
+function parseTantuLedger(text) {
+  // Each entry: "## YYYY-MM-DD HH:MM — Profile: title\nkv=val, kv=val\n"
+  const entries = []
+  const blocks = text.split(/^## /m).slice(1)
+  for (const block of blocks) {
+    const lines = block.trim().split('\n').filter(l => l.trim())
+    if (lines.length < 2) continue
+    const header = lines[0].trim()
+    const kvLine = lines[1].trim()
+
+    // Parse timestamp from header: "2026-01-12 20:45 — ..."
+    const tsMatch = header.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/)
+    const created_at = tsMatch ? tsMatch[1] + ':00' : null
+    if (!created_at) continue
+
+    // Parse title after "— Profile: "
+    const titleMatch = header.match(/—\s+\w+:\s+(.+)$/)
+    const thread_title = titleMatch ? titleMatch[1].trim() : header
+
+    // Parse key=value pairs
+    const kv = {}
+    for (const pair of kvLine.split(',')) {
+      const [k, v] = pair.trim().split('=')
+      if (k && v !== undefined) kv[k.trim()] = v.trim()
+    }
+
+    entries.push({ created_at, thread_title, ...kv })
+  }
+  return entries
+}
+
+function syncTantuActivity() {
+  const { getDb } = require('./database')
+  const adminDb = getDb()
+
+  const vaultRoot = process.env.TANTU_VAULT_ROOT
+    ?? path.join(os.homedir(), 'Documents', 'Obsidian Vault')
+  const ledgersDir = path.join(vaultRoot, 'Tantu', 'ledgers')
+  if (!fs.existsSync(ledgersDir)) return
+
+  const identity = adminDb.prepare('SELECT * FROM village_identity WHERE id=1').get()
+  const owner = identity?.display_name ?? 'Ram'
+
+  const lastSyncRow = adminDb.prepare(
+    "SELECT value FROM settings WHERE key='village_tantu_last_sync'"
+  ).get()
+  const since = lastSyncRow?.value ?? '1970-01-01 00:00:00'
+
+  const insertAct = adminDb.prepare(`
+    INSERT OR IGNORE INTO village_activity (id, source_tool, activity_type, payload, created_at)
+    VALUES (?, 'tantu', ?, ?, ?)
+  `)
+
+  const ledgerFiles = fs.readdirSync(ledgersDir).filter(f => f.endsWith('.md'))
+  for (const file of ledgerFiles) {
+    const profile = file.replace('.md', '')
+    const text = fs.readFileSync(path.join(ledgersDir, file), 'utf8')
+    const entries = parseTantuLedger(text)
+
+    for (const e of entries) {
+      if (e.created_at <= since) continue
+      const actId = `tantu-knot-${profile}-${e.created_at.replace(/[: ]/g, '-')}`
+      insertAct.run(
+        actId,
+        'knot_saved',
+        JSON.stringify({
+          owner,
+          thread_title:    e.thread_title,
+          profile,
+          duration_min:    parseInt(e.duration_min ?? e.duration ?? '0', 10),
+          progress:        e.progress ?? '?',
+          subthread_title: e.subthread ?? e.subthread_title ?? '',
+          stop_reason:     e.stop_reason ?? '',
+          energy_end:      e.energy_end ?? '',
+        }),
+        e.created_at
+      )
+    }
+  }
+
+  adminDb.prepare(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('village_tantu_last_sync', datetime('now'))"
+  ).run()
+}
+
 // ─── Access resolution ────────────────────────────────────────────────────────
 
 function resolveAccess(db, memberId, toolId) {
@@ -260,6 +348,8 @@ function getMemberFeed(memberId) {
   const groveTypes  = loadToolVillageConfig('grove')
   const thinkLevel  = resolveAccess(adminDb, memberId, 'think')
   const thinkTypes  = loadToolVillageConfig('think')
+  const tantuLevel  = resolveAccess(adminDb, memberId, 'tantu')
+  const tantuTypes  = loadToolVillageConfig('tantu')
 
   const identity = adminDb.prepare('SELECT * FROM village_identity WHERE id=1').get()
 
@@ -275,12 +365,14 @@ function getMemberFeed(memberId) {
     let level = null
     if (a.source_tool === 'grove') level = groveLevel
     else if (a.source_tool === 'think') level = thinkLevel
+    else if (a.source_tool === 'tantu') level = tantuLevel
     if (!level) continue
 
     const payload  = JSON.parse(a.payload)
     let typeDef = null
     if (a.source_tool === 'grove') typeDef = groveTypes[a.activity_type]
     else if (a.source_tool === 'think') typeDef = thinkTypes[a.activity_type]
+    else if (a.source_tool === 'tantu') typeDef = tantuTypes[a.activity_type]
     const template = typeDef?.levels?.[level] ?? payload.owner + ' had activity'
     const rendered = render(template, payload)
 
@@ -295,11 +387,19 @@ function getMemberFeed(memberId) {
       detail.topic            = payload.topic
       detail.session_title    = payload.session_title
       detail.node_count       = payload.node_count
+      // Tantu-specific detail fields
+      detail.thread_title     = payload.thread_title
+      detail.duration_min     = payload.duration_min
+      detail.progress         = payload.progress
+      detail.profile          = payload.profile
     }
     if (level === 'commenter' || level === 'collaborator') {
-      detail.notes    = payload.notes
-      detail.takeaway = payload.takeaway
-      detail.goal     = payload.goal
+      detail.notes            = payload.notes
+      detail.takeaway         = payload.takeaway
+      detail.goal             = payload.goal
+      // Tantu commenter+
+      detail.subthread_title  = payload.subthread_title
+      detail.stop_reason      = payload.stop_reason
     }
 
     // Interactions
@@ -346,6 +446,11 @@ function seedTestVillager() {
   `).run()
 
   db.prepare(`
+    INSERT INTO village_access (member_id, tool_id, level)
+    VALUES ('test-villager', 'tantu', 'reader')
+  `).run()
+
+  db.prepare(`
     INSERT OR IGNORE INTO village_notifications (member_id, frequency)
     VALUES ('test-villager', 'daily')
   `).run()
@@ -366,6 +471,7 @@ function json(res, data, status = 200) {
 function startVillageServer() {
   syncGroveActivity()
   syncThinkActivity()
+  syncTantuActivity()
   seedTestVillager()
 
   server = http.createServer((req, res) => {
@@ -375,6 +481,7 @@ function startVillageServer() {
     if (req.method === 'GET' && u.pathname === '/api/feed') {
       syncGroveActivity()
       syncThinkActivity()
+      syncTantuActivity()
       const memberId = u.searchParams.get('member') ?? 'test-villager'
       const data = getMemberFeed(memberId)
       if (!data) return json(res, { error: 'Member not found' }, 404)
@@ -438,11 +545,11 @@ function startVillageServer() {
   })
 
   // Re-sync every 5 minutes
-  setInterval(() => { syncGroveActivity(); syncThinkActivity() }, 5 * 60 * 1000)
+  setInterval(() => { syncGroveActivity(); syncThinkActivity(); syncTantuActivity() }, 5 * 60 * 1000)
 }
 
 function stopVillageServer() {
   if (server) { server.close(); server = null }
 }
 
-module.exports = { startVillageServer, stopVillageServer, syncGroveActivity, syncThinkActivity, seedTestVillager, getMemberFeed, VILLAGE_PORT }
+module.exports = { startVillageServer, stopVillageServer, syncGroveActivity, syncThinkActivity, syncTantuActivity, seedTestVillager, getMemberFeed, VILLAGE_PORT }

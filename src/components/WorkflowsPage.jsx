@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { Plus, Trash2, ToggleRight, GitBranch } from 'lucide-react'
 
-const TOOLS     = ['grove', 'think']
+const TOOLS     = ['grove', 'think', 'tantu']
 const GROVE_EVENTS  = ['session_logged', 'streak_update']
 const THINK_EVENTS  = ['research_started', 'node_concluded', 'artifact_created']
+const TANTU_EVENTS  = ['thread_started', 'knot_saved']
 const ACTION_TYPES  = ['send_email_digest', 'sync_village', 'log_to_console']
 
 function toolEvents(toolId) {
   if (toolId === 'grove')  return GROVE_EVENTS
   if (toolId === 'think')  return THINK_EVENTS
+  if (toolId === 'tantu')  return TANTU_EVENTS
   return []
 }
 

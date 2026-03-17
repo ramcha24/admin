@@ -7,7 +7,7 @@ const https = require('https')
 const { execSync } = require('child_process')
 const { execFile, spawn } = require('child_process')
 const { initDatabase, getDb } = require('./database')
-const { startVillageServer, stopVillageServer, syncGroveActivity, syncThinkActivity, VILLAGE_PORT } = require('./village')
+const { startVillageServer, stopVillageServer, syncGroveActivity, syncThinkActivity, syncTantuActivity, VILLAGE_PORT } = require('./village')
 const { syncToSupabase } = require('./supabase')
 const { scheduleDailyDigest, cancelDigestSchedule, runDailyDigest } = require('./digest')
 
@@ -1249,6 +1249,7 @@ ipcMain.handle('stories:getAll', () => {
     { tool: 'admin', file: path.join(ADMIN_PARENT, 'admin', 'USER_STORIES.md') },
     { tool: 'grove', file: path.join(ADMIN_PARENT, 'grove', 'USER_STORIES.md') },
     { tool: 'think', file: path.join(ADMIN_PARENT, 'think', 'USER_STORIES.md') },
+    { tool: 'tantu', file: path.join(ADMIN_PARENT, 'tantu', 'USER_STORIES.md') },
   ]
 
   const stories = []
@@ -1338,7 +1339,7 @@ ipcMain.handle('seed:run', () => {
   insertTag.run('tag-family', 'Family', '🏠', '#10b981')
   insertTag.run('tag-friends', 'Friends', '🫂', '#6366f1')
   insertTag.run('tag-mentor', 'Mentor', '🎓', '#f59e0b')
-  for (const tool of ['grove', 'think']) {
+  for (const tool of ['grove', 'think', 'tantu']) {
     insertTagDef.run('tag-family', tool, 'reader')
     insertTagDef.run('tag-friends', tool, 'follower')
     insertTagDef.run('tag-mentor', tool, 'collaborator')
@@ -1362,6 +1363,8 @@ ipcMain.handle('seed:run', () => {
   insertAccess.run('member-alice', 'grove', 'commenter')
   insertAccess.run('member-priya', 'grove', 'collaborator')
   insertAccess.run('member-priya', 'think', 'collaborator')
+  insertAccess.run('member-alice', 'tantu', 'reader')
+  insertAccess.run('member-priya', 'tantu', 'collaborator')
 
   // Activity
   const insertAct = db.prepare(`INSERT OR IGNORE INTO village_activity (id, source_tool, activity_type, payload, created_at) VALUES (?, ?, ?, ?, ?)`)
@@ -1370,18 +1373,22 @@ ipcMain.handle('seed:run', () => {
   insertAct.run('act-grove-3', 'grove', 'session_logged', JSON.stringify({ owner: 'Ram', course: 'Machine Learning Fundamentals', duration: 30, notes: '' }), '2026-03-16 08:45:00')
   insertAct.run('act-think-1', 'think', 'research_started', JSON.stringify({ owner: 'Ram', topic: 'Retrieval-Augmented Generation', session_title: 'RAG Architecture Deep Dive', node_count: 1, goal: '' }), '2026-03-13 14:00:00')
   insertAct.run('act-think-2', 'think', 'node_concluded', JSON.stringify({ owner: 'Ram', topic: 'Vector databases comparison', session_title: 'RAG Architecture Deep Dive', takeaway: 'Pinecone is easiest to start with, but pgvector is sufficient for < 1M vectors.' }), '2026-03-13 15:30:00')
+  insertAct.run('act-tantu-1', 'tantu', 'knot_saved', JSON.stringify({ owner: 'Ram', thread_title: 'Chapter 2 — Local sensitivity bounds', profile: 'research', duration_min: 90, progress: '3', subthread_title: 'Write lemma 2.3 statement', stop_reason: 'time_up', energy_end: '3' }), '2026-03-15 14:00:00')
+  insertAct.run('act-tantu-2', 'tantu', 'knot_saved', JSON.stringify({ owner: 'Ram', thread_title: 'Chapter 2 — Local sensitivity bounds', profile: 'research', duration_min: 60, progress: '4', subthread_title: 'Proof sketch for theorem 3', stop_reason: 'finished', energy_end: '4' }), '2026-03-16 10:30:00')
 
   // Interactions
   const insertInt = db.prepare(`INSERT OR IGNORE INTO village_interactions (id, activity_id, member_id, member_name, type, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
   insertInt.run('int-1', 'act-grove-1', 'member-alice', 'Alice Chen',   'comment', JSON.stringify({ body: "Backprop finally clicking is such a great feeling! Do you use 3Blue1Brown's videos?" }), '2026-03-14 20:15:00')
   insertInt.run('int-2', 'act-grove-2', 'member-priya', 'Priya Sharma', 'comment', JSON.stringify({ body: 'The `infer` keyword was a game-changer for me too. Try applying it to discriminated unions next!' }), '2026-03-15 11:00:00')
   insertInt.run('int-3', 'act-think-2', 'member-priya', 'Priya Sharma', 'comment', JSON.stringify({ body: 'Good conclusion. Also worth checking out Weaviate for built-in BM25 hybrid search.' }), '2026-03-13 16:00:00')
+  insertInt.run('int-4', 'act-tantu-2', 'member-priya', 'Priya Sharma', 'suggest_action', JSON.stringify({ body: 'Try formalising the boundary condition before moving to theorem 4 — it will save you backtracking.' }), '2026-03-16 11:00:00')
 
   // Workflows
   const insertWf = db.prepare(`INSERT OR IGNORE INTO workflows (name, trigger_tool, trigger_event, action_type, action_payload, enabled, created_at) SELECT ?, ?, ?, ?, ?, ?, datetime('now') WHERE NOT EXISTS (SELECT 1 FROM workflows WHERE name=?)`)
   insertWf.run('Auto-sync village on Grove session', 'grove', 'session_logged', 'sync_village', '{}', 1, 'Auto-sync village on Grove session')
   insertWf.run('Log Think conclusions to console', 'think', 'node_concluded', 'log_to_console', '{}', 1, 'Log Think conclusions to console')
   insertWf.run('Weekly digest on Grove session (disabled)', 'grove', 'session_logged', 'send_email_digest', '{}', 0, 'Weekly digest on Grove session (disabled)')
+  insertWf.run('Sync village on Tantu knot', 'tantu', 'knot_saved', 'sync_village', '{}', 1, 'Sync village on Tantu knot')
 
   return { ok: true, message: 'Sample data seeded successfully' }
 })
@@ -1390,9 +1397,9 @@ ipcMain.handle('seed:clear', () => {
   const db = getDb()
   const SEED_TAG_IDS     = ['tag-family', 'tag-friends', 'tag-mentor']
   const SEED_MEMBER_IDS  = ['member-alice', 'member-bob', 'member-priya', 'member-test']
-  const SEED_ACTIVITY_IDS = ['act-grove-1', 'act-grove-2', 'act-grove-3', 'act-think-1', 'act-think-2']
-  const SEED_INT_IDS     = ['int-1', 'int-2', 'int-3']
-  const SEED_WF_NAMES    = ['Auto-sync village on Grove session', 'Log Think conclusions to console', 'Weekly digest on Grove session (disabled)']
+  const SEED_ACTIVITY_IDS = ['act-grove-1', 'act-grove-2', 'act-grove-3', 'act-think-1', 'act-think-2', 'act-tantu-1', 'act-tantu-2']
+  const SEED_INT_IDS     = ['int-1', 'int-2', 'int-3', 'int-4']
+  const SEED_WF_NAMES    = ['Auto-sync village on Grove session', 'Log Think conclusions to console', 'Weekly digest on Grove session (disabled)', 'Sync village on Tantu knot']
 
   const placeholders = (arr) => arr.map(() => '?').join(',')
 
