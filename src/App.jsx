@@ -27,13 +27,6 @@ export default function App() {
     return () => clearInterval(id)
   }, [])
 
-  useEffect(() => {
-    const poll = () => window.api.getVillageUnreadCount().then(setVillageUnread).catch(() => {})
-    poll()
-    const id = setInterval(poll, 30000)
-    return () => clearInterval(id)
-  }, [])
-
   return (
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
       <Sidebar

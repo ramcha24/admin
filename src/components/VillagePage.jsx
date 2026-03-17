@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Users, Copy, RefreshCw, ExternalLink, Check, Plus, Inbox, Tag, Send, X, Pencil, Trash2, Eye, Radio, ChevronDown, ChevronRight } from 'lucide-react'
+import { Users, Copy, RefreshCw, ExternalLink, Check, Plus, Inbox, Tag, Send, X, Pencil, Trash2, Eye, Radio, ChevronDown, ChevronRight, User } from 'lucide-react'
 
 const LEVELS = ['follower', 'reader', 'commenter', 'collaborator']
 const TOOLS  = ['grove', 'think']
@@ -632,6 +632,79 @@ function ActivityTab() {
   )
 }
 
+// ─── Identity Card ────────────────────────────────────────────────────────────
+
+function IdentityCard() {
+  const [identity, setIdentity] = useState(null)
+  const [editing,  setEditing]  = useState(false)
+  const [draft,    setDraft]    = useState({})
+  const [saving,   setSaving]   = useState(false)
+
+  useEffect(() => {
+    window.api.getVillageIdentity().then(id => {
+      setIdentity(id)
+      setDraft(id ?? {})
+    })
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    await window.api.updateVillageIdentity({ username: draft.username, display_name: draft.display_name, avatar_emoji: draft.avatar_emoji })
+    setIdentity(draft)
+    setEditing(false)
+    setSaving(false)
+  }
+
+  if (!identity) return null
+
+  if (editing) {
+    return (
+      <div className="bg-white border border-indigo-200 rounded-xl p-4 mb-5 shadow-sm">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Your village identity</p>
+        <div className="flex items-start gap-3">
+          <input value={draft.avatar_emoji ?? '🌿'} onChange={e => setDraft(d => ({ ...d, avatar_emoji: e.target.value }))}
+            className="w-12 h-10 text-center text-xl border border-gray-200 rounded-lg" />
+          <div className="flex-1 space-y-2">
+            <input value={draft.display_name ?? ''} onChange={e => setDraft(d => ({ ...d, display_name: e.target.value }))}
+              placeholder="Display name"
+              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <input value={draft.username ?? ''} onChange={e => setDraft(d => ({ ...d, username: e.target.value }))}
+              placeholder="username (no spaces)"
+              className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary-dark disabled:opacity-40">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={() => { setEditing(false); setDraft(identity) }}
+            className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl p-4 mb-5 shadow-sm flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-xl flex-shrink-0">
+        {identity.avatar_emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm text-gray-900">{identity.display_name}</p>
+        <p className="text-xs text-gray-400 font-mono">@{identity.username}</p>
+      </div>
+      <button onClick={() => setEditing(true)}
+        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg"
+        title="Edit your identity">
+        <Pencil size={13} />
+      </button>
+    </div>
+  )
+}
+
 // ─── Main VillagePage ─────────────────────────────────────────────────────────
 
 // ─── Feed Preview Modal ───────────────────────────────────────────────────────
@@ -785,6 +858,9 @@ export default function VillagePage() {
           )}
         </div>
       </div>
+
+      {/* Identity */}
+      <IdentityCard />
 
       {/* Server status */}
       <div className="bg-white border border-gray-100 rounded-xl p-4 mb-5 shadow-sm">
