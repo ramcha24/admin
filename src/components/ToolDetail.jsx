@@ -285,12 +285,105 @@ function OverviewTab({ tool }) {
   )
 }
 
+// ─── JSDoc API reference renderer ────────────────────────────────────────────
+
+function JsdocView({ data }) {
+  const { fileEntry, entries } = data
+  if (!entries.length && !fileEntry?.description) {
+    return <p className="text-sm text-gray-400 italic">No JSDoc comments found in this file.</p>
+  }
+  return (
+    <div className="space-y-5">
+      {/* File-level description */}
+      {fileEntry?.description && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+          <p className="text-sm text-indigo-800 leading-relaxed">{fileEntry.description}</p>
+        </div>
+      )}
+
+      {/* Per-function entries */}
+      {entries.map((entry, i) => (
+        <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-100 flex items-center gap-2">
+            <code className="text-sm font-mono font-bold text-gray-900">{entry.name}</code>
+            <span className="text-gray-300 font-mono text-sm">()</span>
+          </div>
+          <div className="p-4 space-y-3">
+            {entry.description && (
+              <p className="text-sm text-gray-700 leading-relaxed">{entry.description}</p>
+            )}
+
+            {/* Params */}
+            {entry.params.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Parameters</p>
+                <div className="overflow-x-auto">
+                  <table className="text-xs w-full border-collapse">
+                    <thead>
+                      <tr>
+                        <th className="text-left px-2 py-1 bg-gray-50 border border-gray-100 font-semibold text-gray-500 w-28">Name</th>
+                        <th className="text-left px-2 py-1 bg-gray-50 border border-gray-100 font-semibold text-gray-500 w-36">Type</th>
+                        <th className="text-left px-2 py-1 bg-gray-50 border border-gray-100 font-semibold text-gray-500">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {entry.params.map((p, j) => (
+                        <tr key={j}>
+                          <td className="px-2 py-1 border border-gray-100 font-mono text-indigo-700">{p.name}</td>
+                          <td className="px-2 py-1 border border-gray-100 font-mono text-gray-500">{p.type}</td>
+                          <td className="px-2 py-1 border border-gray-100 text-gray-600">{p.desc}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Returns */}
+            {entry.returns && (
+              <div className="flex items-start gap-2 text-xs">
+                <span className="font-semibold text-gray-400 uppercase tracking-wider shrink-0 pt-0.5">Returns</span>
+                <span className="font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">{entry.returns.type}</span>
+                {entry.returns.desc && <span className="text-gray-600">{entry.returns.desc}</span>}
+              </div>
+            )}
+
+            {/* Throws */}
+            {entry.throws && (
+              <div className="flex items-start gap-2 text-xs">
+                <span className="font-semibold text-gray-400 uppercase tracking-wider shrink-0 pt-0.5">Throws</span>
+                <span className="font-mono text-red-600 bg-red-50 px-1.5 py-0.5 rounded shrink-0">{entry.throws.type}</span>
+                {entry.throws.desc && <span className="text-gray-600">{entry.throws.desc}</span>}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Docs tab ────────────────────────────────────────────────────────────────
 
 function DocsTab({ tool }) {
-  const [selected, setSelected] = useState(null)
-  const [content, setContent]   = useState(null)
-  const [loading, setLoading]   = useState(false)
+  const [selected,    setSelected]    = useState(null)   // doc rel path OR abs js path
+  const [mode,        setMode]        = useState('doc')  // 'doc' | 'jsdoc'
+  const [content,     setContent]     = useState(null)
+  const [jsdocData,   setJsdocData]   = useState(null)
+  const [loading,     setLoading]     = useState(false)
+  const [srcFiles,    setSrcFiles]    = useState([])
+
+  // Discover electron/*.js source files for this tool
+  useEffect(() => {
+    const electronDir = tool.dirPath + '/electron'
+    window.api.fsListDir(electronDir).then(entries => {
+      if (Array.isArray(entries)) {
+        setSrcFiles(entries.filter(e => !e.isDir && e.ext === '.js'))
+      }
+    }).catch(() => {})
+  }, [tool.dirPath])
 
   // resolve relative path from tool dir
   const resolvePath = (relPath) => {
@@ -303,31 +396,60 @@ function DocsTab({ tool }) {
     return parts.join('/')
   }
 
-  const handleOpen = async (relPath) => {
+  const handleOpenDoc = async (relPath) => {
     setLoading(true)
     setSelected(relPath)
+    setMode('doc')
+    setJsdocData(null)
     const result = await window.api.fsReadFile(resolvePath(relPath))
     setContent(result)
     setLoading(false)
   }
 
+  const handleOpenJsdoc = async (absPath) => {
+    setLoading(true)
+    setSelected(absPath)
+    setMode('jsdoc')
+    setContent(null)
+    const result = await window.api.parseJsdoc(absPath)
+    setJsdocData(result)
+    setLoading(false)
+  }
+
   return (
     <div className="flex h-full">
-      {/* Doc list */}
+      {/* Sidebar */}
       <div className="w-56 border-r border-gray-100 overflow-y-auto p-3 space-y-1 shrink-0">
+
+        {/* Markdown docs */}
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-2">Documentation</p>
-        {DOC_FILES.map(doc => {
-          const exists = true // optimistic; error shown in viewer
-          return (
-            <button key={doc.rel}
-              onClick={() => handleOpen(doc.rel)}
-              className={`w-full text-left px-2 py-2 rounded-lg text-xs transition-colors ${selected === doc.rel ? 'bg-primary/10 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
-            >
-              <div className="font-medium">{doc.label}</div>
-              <div className="text-gray-400 mt-0.5 leading-tight">{doc.desc}</div>
-            </button>
-          )
-        })}
+        {DOC_FILES.map(doc => (
+          <button key={doc.rel}
+            onClick={() => handleOpenDoc(doc.rel)}
+            className={`w-full text-left px-2 py-2 rounded-lg text-xs transition-colors ${selected === doc.rel ? 'bg-primary/10 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+          >
+            <div className="font-medium">{doc.label}</div>
+            <div className="text-gray-400 mt-0.5 leading-tight">{doc.desc}</div>
+          </button>
+        ))}
+
+        {/* Source code JSDoc — only shown when electron/*.js files exist */}
+        {srcFiles.length > 0 && (
+          <>
+            <div className="pt-3 pb-1">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2">Source Code</p>
+            </div>
+            {srcFiles.map(f => (
+              <button key={f.path}
+                onClick={() => handleOpenJsdoc(f.path)}
+                className={`w-full text-left px-2 py-2 rounded-lg text-xs transition-colors ${selected === f.path ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50 text-gray-700'}`}
+              >
+                <div className="font-mono font-medium">{f.name}</div>
+                <div className="text-gray-400 mt-0.5 leading-tight">API reference</div>
+              </button>
+            ))}
+          </>
+        )}
       </div>
 
       {/* Content */}
@@ -343,7 +465,7 @@ function DocsTab({ tool }) {
             <RefreshCw size={14} className="animate-spin" /> Loading…
           </div>
         )}
-        {!loading && content?.error && (
+        {!loading && mode === 'doc' && content?.error && (
           <div className="flex items-start gap-2 text-amber-600 text-sm bg-amber-50 rounded-xl p-4">
             <AlertCircle size={16} className="shrink-0 mt-0.5" />
             <div>
@@ -352,10 +474,19 @@ function DocsTab({ tool }) {
             </div>
           </div>
         )}
-        {!loading && content?.content && (
+        {!loading && mode === 'doc' && content?.content && (
           <div className="prose-sm max-w-none">
             {renderMarkdown(content.content)}
           </div>
+        )}
+        {!loading && mode === 'jsdoc' && jsdocData?.error && (
+          <div className="flex items-start gap-2 text-amber-600 text-sm bg-amber-50 rounded-xl p-4">
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <p className="font-medium">{jsdocData.error}</p>
+          </div>
+        )}
+        {!loading && mode === 'jsdoc' && jsdocData && !jsdocData.error && (
+          <JsdocView data={jsdocData} />
         )}
       </div>
     </div>

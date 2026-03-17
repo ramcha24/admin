@@ -206,6 +206,8 @@ contextBridge.exposeInMainWorld('api', {
   fsListDir:        (dirPath)            => invoke('fs:listDir', dirPath),
   /** Read a source file; restricted to the Admin workspace and Library directories. @param {string} filePath @returns {Promise<{content:string}|{error:string}>} */
   fsReadFile:       (filePath)           => invoke('fs:readFile', filePath),
+  /** Parse JSDoc blocks from a JS source file and return structured API entries. @param {string} filePath @returns {Promise<{fileEntry:object|null,entries:object[]}|{error:string}>} */
+  parseJsdoc:       (filePath)           => invoke('docs:parseJsdoc', filePath),
 
   // ── Dev utilities ─────────────────────────────────────────────────────────
 
