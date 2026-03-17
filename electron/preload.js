@@ -34,6 +34,15 @@ contextBridge.exposeInMainWorld('api', {
   getAllSettings:    ()                   => invoke('settings:getAll'),
   setSetting:       (key, value)         => invoke('settings:set', { key, value }),
 
+  // Village
+  getVillageMembers:  ()                         => invoke('village:getMembers'),
+  addVillageMember:   (data)                     => invoke('village:addMember', data),
+  setVillageAccess:   (data)                     => invoke('village:setAccess', data),
+  syncVillage:        ()                         => invoke('village:sync'),
+  getVillageStatus:   ()                         => invoke('village:getStatus'),
+  getVillageIdentity: ()                         => invoke('village:getIdentity'),
+  updateVillageIdentity: (data)                  => invoke('village:updateIdentity', data),
+
   // Shell
   openExternal:     (url)                => invoke('shell:openExternal', url),
 })

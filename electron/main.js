@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const { execFile, spawn } = require('child_process')
 const { initDatabase, getDb } = require('./database')
+const { startVillageServer, stopVillageServer, syncGroveActivity, VILLAGE_PORT } = require('./village')
 
 const isDev = process.argv.includes('--dev')
 const ADMIN_PARENT = path.resolve(__dirname, '../../')  // /Users/ramcha1994/Admin
@@ -38,12 +39,14 @@ function createWindow() {
 
 app.whenReady().then(() => {
   initDatabase()
+  startVillageServer()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
+app.on('before-quit', () => stopVillageServer())
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
@@ -682,6 +685,54 @@ ipcMain.handle('settings:getAll', () => {
 ipcMain.handle('settings:set', (_, { key, value }) => {
   getDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value)
   return true
+})
+
+// ─── Village ──────────────────────────────────────────────────────────────────
+
+ipcMain.handle('village:getMembers', () => {
+  return getDb().prepare('SELECT * FROM village_members ORDER BY joined_at DESC').all()
+})
+
+ipcMain.handle('village:addMember', (_, { name, email, avatarEmoji, tagId }) => {
+  const id = `member-${Date.now()}`
+  getDb().prepare(`
+    INSERT INTO village_members (id, name, email, avatar_emoji, tag_id)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, name, email, avatarEmoji ?? '👤', tagId ?? null)
+  return { ok: true, id, url: `http://localhost:${VILLAGE_PORT}/?member=${id}` }
+})
+
+ipcMain.handle('village:setAccess', (_, { memberId, toolId, level }) => {
+  getDb().prepare(`
+    INSERT OR REPLACE INTO village_access (member_id, tool_id, level)
+    VALUES (?, ?, ?)
+  `).run(memberId, toolId, level)
+  return { ok: true }
+})
+
+ipcMain.handle('village:sync', () => {
+  syncGroveActivity()
+  return { ok: true }
+})
+
+ipcMain.handle('village:getStatus', () => {
+  return {
+    running: true,
+    port: VILLAGE_PORT,
+    url: `http://localhost:${VILLAGE_PORT}`,
+    testUrl: `http://localhost:${VILLAGE_PORT}/?member=test-villager`,
+  }
+})
+
+ipcMain.handle('village:getIdentity', () => {
+  return getDb().prepare('SELECT * FROM village_identity WHERE id=1').get()
+})
+
+ipcMain.handle('village:updateIdentity', (_, { username, display_name, avatar_emoji }) => {
+  getDb().prepare(`
+    UPDATE village_identity SET username=?, display_name=?, avatar_emoji=? WHERE id=1
+  `).run(username, display_name, avatar_emoji)
+  return { ok: true }
 })
 
 // ─── Shell ────────────────────────────────────────────────────────────────────
