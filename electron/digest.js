@@ -14,6 +14,16 @@
 
 const PLACEHOLDER = '__NOT_SET__'
 
+/**
+ * Read SMTP configuration from the Admin settings table.
+ *
+ * Returns `null` when required fields (`smtp_host`, `smtp_user`, `smtp_pass`)
+ * are absent or still placeholder values, allowing callers to skip digest
+ * sending gracefully until the user fills in Settings.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @returns {{host:string,port:number,user:string,pass:string,from:string}|null} SMTP config, or `null`.
+ */
 function getSmtpConfig(db) {
   const get = key => db.prepare('SELECT value FROM settings WHERE key=?').get(key)?.value ?? ''
   const host = get('smtp_host')
@@ -31,6 +41,18 @@ function getSmtpConfig(db) {
 
 // ─── HTML email builder ───────────────────────────────────────────────────────
 
+/**
+ * Build the HTML body for a village email digest.
+ *
+ * Renders an inline-CSS HTML email containing:
+ * - A streak banner (if a `streak_update` activity is present).
+ * - A list of the 8 most recent `session_logged` activity entries.
+ * - A polite "no activity" placeholder when neither section has data.
+ *
+ * @param {{identity:object, member:object, items:object[]}} feed
+ *   The member feed returned by `getMemberFeed()`.
+ * @returns {string} Full HTML document string ready to send as `mail.html`.
+ */
 function buildDigestHtml({ identity, member, items }) {
   const ownerName = identity?.display_name ?? 'Your friend'
   const sessions  = items.filter(i => i.type === 'session_logged')
@@ -90,6 +112,20 @@ function buildDigestHtml({ identity, member, items }) {
 
 // ─── Send digest for one member ───────────────────────────────────────────────
 
+/**
+ * Generate and send a digest email to a single village member.
+ *
+ * Fetches the member's personalised feed via `getMemberFeed()`, builds the HTML
+ * with `buildDigestHtml()`, creates a Nodemailer transporter from `cfg`, and
+ * sends the email. On success, records `last_sent_at` in `village_notifications`.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @param {{id:string,name:string,email:string}} member - Village member row.
+ * @param {{host:string,port:number,user:string,pass:string,from:string}} cfg - SMTP config.
+ * @param {{display_name?:string,username?:string}} identity - Owner identity row.
+ * @returns {Promise<{sent:boolean,to:string}|{skipped:boolean,reason:string}>}
+ * @throws {Error} On SMTP delivery failure.
+ */
 async function sendDigestToMember(db, member, cfg, identity) {
   const { getMemberFeed } = require('./village')
   const feed = getMemberFeed(member.id)
@@ -124,6 +160,21 @@ async function sendDigestToMember(db, member, cfg, identity) {
 
 // ─── Run digest for all eligible members ─────────────────────────────────────
 
+/**
+ * Run the daily email digest for all eligible village members.
+ *
+ * Eligible members are those with:
+ * - A non-empty email address.
+ * - `village_notifications.frequency = 'daily'` (or no row yet).
+ * - `last_sent_at` more than 20 hours ago (or never sent).
+ * - Not the `test-villager` synthetic account.
+ *
+ * Errors for individual members are captured and included in the results array
+ * rather than aborting the whole run.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @returns {Promise<{sent:number,results:object[]}|{skipped:boolean,reason:string}>}
+ */
 async function runDailyDigest(db) {
   const cfg = getSmtpConfig(db)
   if (!cfg) return { skipped: true, reason: 'SMTP not configured' }
@@ -157,6 +208,16 @@ async function runDailyDigest(db) {
 
 let digestTimer = null
 
+/**
+ * Schedule the daily digest to fire once at 08:00 local time every day.
+ *
+ * Uses a self-rescheduling `setTimeout` rather than a fixed interval so the
+ * trigger time stays aligned to 8am even across DST changes. Safe to call
+ * multiple times — subsequent calls are no-ops if a timer is already pending.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database passed through to `runDailyDigest`.
+ * @returns {void}
+ */
 function scheduleDailyDigest(db) {
   if (digestTimer) return
 
@@ -178,6 +239,14 @@ function scheduleDailyDigest(db) {
   scheduleNext()
 }
 
+/**
+ * Cancel the pending daily digest timer.
+ *
+ * Should be called from `app.on('before-quit')` to prevent the timer from
+ * firing after the Electron process begins shutting down.
+ *
+ * @returns {void}
+ */
 function cancelDigestSchedule() {
   if (digestTimer) { clearTimeout(digestTimer); digestTimer = null }
 }

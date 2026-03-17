@@ -15,6 +15,15 @@
 const PLACEHOLDER_URL = 'https://YOUR_PROJECT.supabase.co'
 const PLACEHOLDER_KEY = 'YOUR_ANON_KEY'
 
+/**
+ * Read Supabase connection credentials from the Admin settings table.
+ *
+ * Returns `null` when the credentials are absent or still set to the
+ * placeholder values, so callers can skip sync gracefully.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @returns {{url:string, key:string}|null} Configured credentials, or `null`.
+ */
 function getSupabaseConfig(db) {
   const url = db.prepare("SELECT value FROM settings WHERE key='supabase_url'").get()?.value
   const key = db.prepare("SELECT value FROM settings WHERE key='supabase_anon_key'").get()?.value
@@ -22,6 +31,21 @@ function getSupabaseConfig(db) {
   return { url, key }
 }
 
+/**
+ * Make an authenticated HTTP request to the Supabase REST API.
+ *
+ * Uses the global `fetch` (available from Node 18+ / Electron 28) rather than
+ * the Supabase JS client to avoid adding an extra npm dependency.
+ * GET responses are parsed as JSON and returned; all other methods return `null`.
+ *
+ * @param {{url:string, key:string}} cfg - Supabase project URL and anon key.
+ * @param {'GET'|'POST'|'PATCH'|'DELETE'} method - HTTP method.
+ * @param {string} table - Supabase table name.
+ * @param {object|null} [body=null] - Request body (serialised to JSON for non-GET requests).
+ * @param {string} [filter=''] - PostgREST query string appended to the URL (e.g. `?id=eq.1`).
+ * @returns {Promise<object[]|null>} Parsed JSON array for GET, `null` otherwise.
+ * @throws {Error} When the response status is not OK.
+ */
 async function supaFetch(cfg, method, table, body = null, filter = '') {
   const res = await fetch(`${cfg.url}/rest/v1/${table}${filter}`, {
     method,
@@ -47,6 +71,16 @@ async function supaFetch(cfg, method, table, body = null, filter = '') {
 
 // ─── Push activity ────────────────────────────────────────────────────────────
 
+/**
+ * Push unsynced local `village_activity` rows to Supabase.
+ *
+ * Only rows where `synced_at IS NULL` are sent (up to 500 per call).
+ * Uses upsert (`Prefer: resolution=merge-duplicates`) so re-pushing the same
+ * IDs is safe. Marks successfully pushed rows with `synced_at = datetime('now')`.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @returns {Promise<{pushed:number}|{skipped:boolean,reason:string}>}
+ */
 async function pushActivity(db) {
   const cfg = getSupabaseConfig(db)
   if (!cfg) return { skipped: true, reason: 'Supabase not configured' }
@@ -82,6 +116,17 @@ async function pushActivity(db) {
 
 // ─── Pull interactions ────────────────────────────────────────────────────────
 
+/**
+ * Pull new `village_interactions` from Supabase into the local admin.db.
+ *
+ * Fetches interactions scoped to the current owner's username and created
+ * after the `supabase_last_interaction_pull` watermark (up to 200 rows).
+ * Inserts with `INSERT OR IGNORE` so duplicate pulls are safe.
+ * Advances the watermark to the latest pulled `created_at` timestamp.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @returns {Promise<{pulled:number}|{skipped:boolean,reason:string}>}
+ */
 async function pullInteractions(db) {
   const cfg = getSupabaseConfig(db)
   if (!cfg) return { skipped: true, reason: 'Supabase not configured' }
@@ -131,6 +176,17 @@ async function pullInteractions(db) {
 
 // ─── Push pre-computed member feeds ──────────────────────────────────────────
 
+/**
+ * Push pre-computed member feed objects to the Supabase `village_feeds` table.
+ *
+ * Iterates all local village members, calls `getMemberFeed()` for each, and
+ * upserts the full feed JSON into Supabase so the Cloudflare Pages deployment
+ * can serve them without hitting the local machine at all. Uses lazy-require
+ * on `village.js` to avoid a circular dependency at module load time.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @returns {Promise<{pushed:number}|{skipped:boolean,reason:string}>}
+ */
 async function pushMemberFeeds(db) {
   const cfg = getSupabaseConfig(db)
   if (!cfg) return { skipped: true, reason: 'Supabase not configured' }
@@ -162,6 +218,16 @@ async function pushMemberFeeds(db) {
 
 // ─── Combined sync ────────────────────────────────────────────────────────────
 
+/**
+ * Run a full Supabase sync: push activity, push member feeds, and pull interactions.
+ *
+ * All three operations run concurrently via `Promise.allSettled` so a failure
+ * in one does not cancel the others. Each result is normalised to either its
+ * success value or `{ error: message }`.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @returns {Promise<{push:object, feeds:object, pull:object}>} Combined sync result.
+ */
 async function syncToSupabase(db) {
   const [push, feeds, pull] = await Promise.allSettled([
     pushActivity(db),

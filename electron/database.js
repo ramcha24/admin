@@ -1,3 +1,12 @@
+/**
+ * @file database.js
+ * @description Admin SQLite database initialisation and schema management.
+ *
+ * Manages the single admin.db instance stored in the Electron userData directory.
+ * Called once at app startup via `initDatabase()`; all subsequent access goes
+ * through the `getDb()` singleton getter.
+ */
+
 const Database = require('better-sqlite3')
 const path = require('path')
 const { app } = require('electron')
@@ -5,6 +14,15 @@ const { app } = require('electron')
 const dbPath = path.join(app.getPath('userData'), 'admin.db')
 let db
 
+/**
+ * Initialise the Admin SQLite database.
+ *
+ * Opens (or creates) admin.db, enables WAL journal mode and foreign-key
+ * enforcement, then delegates to `createSchema()` to ensure all tables exist.
+ * Must be called exactly once, during `app.whenReady()`.
+ *
+ * @returns {import('better-sqlite3').Database} The opened database instance.
+ */
 function initDatabase() {
   db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
@@ -13,6 +31,21 @@ function initDatabase() {
   return db
 }
 
+/**
+ * Create all Admin database tables and apply additive column migrations.
+ *
+ * Uses `CREATE TABLE IF NOT EXISTS` throughout so it is safe to call on every
+ * startup — existing data is never destroyed. New columns added in later
+ * versions are wrapped in try/catch `ALTER TABLE` statements so they are
+ * silently skipped if already present.
+ *
+ * Tables created: tool_registry, events, workflows, settings, ideas,
+ * village_identity, village_tags, village_tag_defaults, village_members,
+ * village_access, village_activity, village_interactions,
+ * village_notifications, capabilities, issues.
+ *
+ * @returns {void}
+ */
 function createSchema() {
   db.exec(`
     -- Tool registry (populated from tool.json manifests at startup)
@@ -224,6 +257,15 @@ function createSchema() {
   `).run()
 }
 
+/**
+ * Return the shared Admin database instance.
+ *
+ * `initDatabase()` must have been called before this getter is used.
+ * All IPC handlers and service modules should obtain the DB through this
+ * function rather than requiring better-sqlite3 directly.
+ *
+ * @returns {import('better-sqlite3').Database} The singleton database instance.
+ */
 function getDb() { return db }
 
 module.exports = { initDatabase, getDb }
