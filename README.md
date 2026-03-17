@@ -126,22 +126,24 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have focused on stabilizing v1.0.3 of Admin, introducing a pre-push hook and Electron builder integration for consistent app builds. Key improvements include a functional 'Try it' panel for service contracts, enhanced file ingestion with support for DOCX and RTF via textutil, and a robust single-instance lock to prevent crashes. The village server now handles EADDRINUSE errors and email digests are scheduled daily.
+Recent commits have finalized the core admin UI, including the Capabilities page with Try-it panel and service contract discovery. The workflow engine is functional, allowing for automated actions based on tool events. Key improvements include a robust auto-push mechanism, stable release publishing, and EADDRINUSE error handling for the village server.
 
 **Next steps:**
-- Implement robust error handling and logging within the `electron/village.js` module to improve debugging.
-- Develop a more user-friendly interface for managing workflow triggers and actions within the 'Workflows' page.
-- Create a comprehensive test suite to verify the functionality of all newly introduced features, particularly around the service contract gateway and event publishing.
+- Implement proper logging and error reporting within the village server and tool service contracts.
+- Develop a more user-friendly interface for managing workflow definitions, including drag-and-drop configuration.
+- Add support for more complex payload transformations within the workflows, enabling greater flexibility for tool interactions.
+- Implement comprehensive testing for all new features, focusing on edge cases and error handling.
+- Refactor code to enhance scalability and improve performance, particularly for the village server and feed processing.
 
 **Recent commits:**
+- `a6b7f58` release.sh: auto-push to origin after packaging
+- `1e2b7cc` chore: release v1.0.4
+- `fa2d65d` Merge pull request #7 from ramcha24/feature/enforce-branch-workflow
+- `5661c6c` release.sh: use --no-verify for version bump commits (legitimately on main)
+- `62aa8c1` chore: update auto-generated files
 - `10c2065` Enforce feature-branch workflow: pre-push hook + PreToolUse guard
 - `8876839` chore: release v1.0.3
 - `a267d07` chore: update auto-generated files
 - `10ac88f` Add app icon and wire into electron-builder config
 - `c9723aa` chore: release v1.0.2
-- `7c67011` chore: update auto-generated files
-- `6516028` Fix ADMIN_PARENT in packaged app — bake real tools path at release time
-- `756c729` chore: release v1.0.1
-- `3666e9e` chore: update dev-status and README
-- `fb25802` Add single-instance lock, stable release publish flow, and release script
 <!-- STATUS:END -->
