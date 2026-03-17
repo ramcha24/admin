@@ -158,6 +158,9 @@ function createSchema() {
   setDefault.run('llm_model', 'claude-haiku-4-5-20251001')
   setDefault.run('ollama_base_url', 'http://localhost:11434')
   setDefault.run('ollama_model', 'llama3')
+  // Supabase (placeholder — fill in Admin Settings to enable cloud sync)
+  setDefault.run('supabase_url', 'https://YOUR_PROJECT.supabase.co')
+  setDefault.run('supabase_anon_key', 'YOUR_ANON_KEY')
 
   // Seed default village identity
   db.prepare(`

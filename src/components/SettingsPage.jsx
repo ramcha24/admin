@@ -9,11 +9,13 @@ const CLAUDE_MODELS = [
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
-    llm_provider:    'claude',
-    llm_model:       'claude-haiku-4-5-20251001',
-    anthropic_api_key: '',
-    ollama_base_url: 'http://localhost:11434',
-    ollama_model:    'llama3',
+    llm_provider:       'claude',
+    llm_model:          'claude-haiku-4-5-20251001',
+    anthropic_api_key:  '',
+    ollama_base_url:    'http://localhost:11434',
+    ollama_model:       'llama3',
+    supabase_url:       '',
+    supabase_anon_key:  '',
   })
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -125,6 +127,37 @@ export default function SettingsPage() {
             </div>
           </>
         )}
+
+        {/* Supabase (village cloud sync) */}
+        <div className="pt-4 border-t border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-700 mb-1">Village Cloud Sync</h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Optional — connect to Supabase to sync your village feed to the cloud.
+            See <code className="bg-gray-100 px-1 rounded">SUPABASE_SETUP.md</code> for setup instructions.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Supabase Project URL</label>
+              <input
+                type="text"
+                value={settings.supabase_url}
+                onChange={e => set('supabase_url', e.target.value)}
+                placeholder="https://YOUR_PROJECT.supabase.co"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Supabase Anon Key</label>
+              <input
+                type="password"
+                value={settings.supabase_anon_key}
+                onChange={e => set('supabase_anon_key', e.target.value)}
+                placeholder="eyJhbG..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary font-mono"
+              />
+            </div>
+          </div>
+        </div>
 
         <button
           onClick={handleSave}

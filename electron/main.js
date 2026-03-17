@@ -4,6 +4,7 @@ const fs = require('fs')
 const { execFile, spawn } = require('child_process')
 const { initDatabase, getDb } = require('./database')
 const { startVillageServer, stopVillageServer, syncGroveActivity, VILLAGE_PORT } = require('./village')
+const { syncToSupabase } = require('./supabase')
 
 const isDev = process.argv.includes('--dev')
 const ADMIN_PARENT = path.resolve(__dirname, '../../')  // /Users/ramcha1994/Admin
@@ -710,9 +711,10 @@ ipcMain.handle('village:setAccess', (_, { memberId, toolId, level }) => {
   return { ok: true }
 })
 
-ipcMain.handle('village:sync', () => {
+ipcMain.handle('village:sync', async () => {
   syncGroveActivity()
-  return { ok: true }
+  const result = await syncToSupabase(getDb())
+  return { ok: true, supabase: result }
 })
 
 ipcMain.handle('village:getStatus', () => {
