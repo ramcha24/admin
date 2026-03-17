@@ -4,7 +4,7 @@
   "icon": "🛠️",
   "description": "Personal OS dashboard — tool launcher, discovery, and new tool scaffolding",
   "color": "#0f172a",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "status": "active",
   "launch": {
     "dev": "bash dev.sh",
