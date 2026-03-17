@@ -126,22 +126,23 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have added a release script (`release.sh`) for L2 compliance checks and automated tool publishing, along with an app icon and wire into the Electron builder config.  A feature-branch workflow is enforced via a pre-push hook and a guard in the tool's Electron app. The latest v1.0.5 release includes these changes, improving the release process and adding a layer of control for tool development.
+Recent commits have focused on automating feature branch creation, release management, and improving the workflow for adding new tools. Specifically, the `release.sh` script is now used for automated packaging and pushing, and a pre-push hook enforces a feature branch workflow. Tool discovery and invocation capabilities have also been enhanced with a 'Try it' panel for easier testing.
 
 **Next steps:**
-- Implement the 'Try it' panel on the Capabilities page to allow users to directly test service calls from within the Admin interface.
-- Refactor the `electron/preload.js` file to handle the pre-push hook and enforce the feature branch workflow more robustly, addressing potential bypasses.
-- Implement a more comprehensive logging mechanism within the Admin app to aid in debugging issues with service calls and workflow execution.
+- Implement robust error handling and logging for the `release.sh` script to aid in debugging packaging issues.
+- Expand the 'Try it' panel to support more service types and provide clearer visual feedback on success/failure.
+- Document the schema for the 'capabilities' table in detail, including potential input types and validation rules.
+- Refactor the code for managing tool service contracts to improve modularity and reduce redundancy.
 
 **Recent commits:**
+- `0bdbbd4` feat: auto-create feature branch on Build it, rename Fix it → Build it
+- `1d80022` chore: release v1.0.6
+- `63ad8dd` chore: update auto-generated files
+- `edda2f4` chore: village-web feed renders all activity types with tool badges
 - `0b80023` chore: update auto-generated files
 - `e6670fb` feat: add release.sh to L2 compliance check and update TOOL_PROTOCOL.md (#9)
 - `33308eb` chore: release v1.0.5
 - `72bcf2e` Merge pull request #8 from ramcha24/feature/release-script-auto-push
 - `f23aa59` chore: update auto-generated files
 - `a6b7f58` release.sh: auto-push to origin after packaging
-- `1e2b7cc` chore: release v1.0.4
-- `fa2d65d` Merge pull request #7 from ramcha24/feature/enforce-branch-workflow
-- `5661c6c` release.sh: use --no-verify for version bump commits (legitimately on main)
-- `62aa8c1` chore: update auto-generated files
 <!-- STATUS:END -->

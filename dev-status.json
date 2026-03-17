@@ -1,10 +1,11 @@
 {
-  "last_commit": "0b80023",
-  "updated_at": "2026-03-17T17:00:13.547Z",
-  "dev_summary": "Recent commits have added a release script (`release.sh`) for L2 compliance checks and automated tool publishing, along with an app icon and wire into the Electron builder config.  A feature-branch workflow is enforced via a pre-push hook and a guard in the tool's Electron app. The latest v1.0.5 release includes these changes, improving the release process and adding a layer of control for tool development.",
+  "last_commit": "0bdbbd4",
+  "updated_at": "2026-03-17T17:05:42.531Z",
+  "dev_summary": "Recent commits have focused on automating feature branch creation, release management, and improving the workflow for adding new tools. Specifically, the `release.sh` script is now used for automated packaging and pushing, and a pre-push hook enforces a feature branch workflow. Tool discovery and invocation capabilities have also been enhanced with a 'Try it' panel for easier testing.",
   "next_steps": [
-    "Implement the 'Try it' panel on the Capabilities page to allow users to directly test service calls from within the Admin interface.",
-    "Refactor the `electron/preload.js` file to handle the pre-push hook and enforce the feature branch workflow more robustly, addressing potential bypasses.",
-    "Implement a more comprehensive logging mechanism within the Admin app to aid in debugging issues with service calls and workflow execution."
+    "Implement robust error handling and logging for the `release.sh` script to aid in debugging packaging issues.",
+    "Expand the 'Try it' panel to support more service types and provide clearer visual feedback on success/failure.",
+    "Document the schema for the 'capabilities' table in detail, including potential input types and validation rules.",
+    "Refactor the code for managing tool service contracts to improve modularity and reduce redundancy."
   ]
 }
