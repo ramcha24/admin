@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('api', {
   updateVillageIdentity: (data)   => invoke('village:updateIdentity', data),
   // Village — inbox
   getVillageInteractions: ()      => invoke('village:getInteractions'),
+  getVillageActivity:     ()      => invoke('village:getActivity'),
   markVillageRead:        (ids)   => invoke('village:markRead', ids),
   getVillageUnreadCount:  ()      => invoke('village:getUnreadCount'),
   villageReply:           (data)  => invoke('village:reply', data),

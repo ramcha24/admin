@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Users, Copy, RefreshCw, ExternalLink, Check, Plus, Inbox, Tag, Send, X, Pencil, Trash2, Eye } from 'lucide-react'
+import { Users, Copy, RefreshCw, ExternalLink, Check, Plus, Inbox, Tag, Send, X, Pencil, Trash2, Eye, Radio, ChevronDown, ChevronRight } from 'lucide-react'
 
 const LEVELS = ['follower', 'reader', 'commenter', 'collaborator']
 const TOOLS  = ['grove', 'think']
@@ -446,6 +446,192 @@ function TagsTab({ tags, onChanged }) {
   )
 }
 
+// ─── Activity Feed tab ────────────────────────────────────────────────────────
+
+const TOOL_META = {
+  grove: { icon: '🌿', label: 'Grove',  color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  think: { icon: '🧠', label: 'Think',  color: 'bg-violet-50  text-violet-700  border-violet-200'  },
+  tantu: { icon: '🧵', label: 'Tantu',  color: 'bg-rose-50    text-rose-700    border-rose-200'    },
+}
+const LEVEL_COLORS = {
+  follower:     'bg-gray-50 text-gray-500 border-gray-200',
+  reader:       'bg-sky-50 text-sky-600 border-sky-200',
+  commenter:    'bg-indigo-50 text-indigo-600 border-indigo-200',
+  collaborator: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+}
+
+function ActivityItem({ item }) {
+  const [open, setOpen] = useState(false)
+  const tool = TOOL_META[item.source_tool] ?? { icon: '📦', label: item.source_tool, color: 'bg-gray-50 text-gray-500 border-gray-200' }
+  const hasInteractions = item.interactions?.length > 0
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+      <button onClick={() => setOpen(o => !o)} className="w-full text-left">
+        <div className="flex items-start gap-3 px-4 py-3">
+          <div className="shrink-0 mt-0.5">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${tool.color}`}>
+              {tool.icon} {tool.label}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-800 leading-snug">
+              {item.payload?.notes
+                ? <><strong className="font-medium">{item.payload.course_title ?? item.payload.topic ?? item.activity_type}</strong> — {item.payload.duration_minutes ?? item.payload.duration_min ?? '?'}min</>
+                : item.payload?.topic
+                  ? <><strong className="font-medium">{item.payload.topic}</strong> <span className="text-gray-400 text-xs">{item.activity_type.replace(/_/g, ' ')}</span></>
+                  : <span className="text-gray-600 capitalize">{item.activity_type.replace(/_/g, ' ')}</span>
+              }
+            </p>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-xs text-gray-400">{timeAgo(item.created_at)}</span>
+              {hasInteractions && (
+                <span className="text-xs text-indigo-500">💬 {item.interactions.length}</span>
+              )}
+              {item.visibility.length === 0 && (
+                <span className="text-xs text-gray-300">not visible to anyone</span>
+              )}
+            </div>
+          </div>
+          <div className="shrink-0 flex items-center gap-1 flex-wrap justify-end max-w-[160px]">
+            {item.visibility.slice(0, 4).map(v => (
+              <span key={v.memberId} className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${LEVEL_COLORS[v.level] ?? 'bg-gray-50 text-gray-500 border-gray-200'}`}
+                title={`${v.name} — ${v.level}`}>
+                {v.emoji} {v.level[0].toUpperCase()}
+              </span>
+            ))}
+            {item.visibility.length > 4 && (
+              <span className="text-[10px] text-gray-400">+{item.visibility.length - 4}</span>
+            )}
+          </div>
+          <span className="shrink-0 text-gray-300 ml-1">
+            {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </span>
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-50 px-4 py-3 space-y-3">
+          {/* Visibility breakdown */}
+          <div>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Who sees this</p>
+            {item.visibility.length === 0
+              ? <p className="text-xs text-gray-400 italic">No members have access to {item.source_tool}.</p>
+              : (
+                <div className="flex flex-wrap gap-2">
+                  {item.visibility.map(v => (
+                    <div key={v.memberId} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ${LEVEL_COLORS[v.level] ?? ''}`}>
+                      <span>{v.emoji}</span>
+                      <span className="font-medium">{v.name}</span>
+                      <span className="opacity-60">· {v.level}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+          </div>
+
+          {/* Payload preview */}
+          {(item.payload?.notes || item.payload?.takeaway || item.payload?.streak_days) && (
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Content</p>
+              {item.payload.notes && <p className="text-xs text-gray-600 italic">"{item.payload.notes}"</p>}
+              {item.payload.takeaway && <p className="text-xs text-gray-600 italic">"{item.payload.takeaway}"</p>}
+              {item.payload.streak_days && (
+                <p className="text-xs text-gray-600">🔥 {item.payload.streak_days} day streak · {item.payload.total_hours_this_week}h this week</p>
+              )}
+            </div>
+          )}
+
+          {/* Interactions */}
+          {hasInteractions && (
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Interactions</p>
+              <div className="space-y-1.5">
+                {item.interactions.map(i => (
+                  <div key={i.id} className="flex items-start gap-2 text-xs">
+                    <span className="text-base leading-none mt-0.5">{i.member_avatar ?? '👤'}</span>
+                    <div>
+                      <span className="font-medium text-gray-700">{i.member_name}</span>
+                      <span className="text-gray-400 ml-1">{timeAgo(i.created_at)}</span>
+                      {!i.read_at && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block" />}
+                      <p className="text-gray-600 mt-0.5">{i.payload?.body ?? i.type}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ActivityTab() {
+  const [items,    setItems]    = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [toolFilter, setToolFilter] = useState('all')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const data = await window.api.getVillageActivity()
+    setItems(data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const filtered = toolFilter === 'all' ? items : items.filter(i => i.source_tool === toolFilter)
+  const tools = [...new Set(items.map(i => i.source_tool))]
+
+  return (
+    <div>
+      {/* Filter */}
+      <div className="flex items-center gap-2 mb-4">
+        <button onClick={() => setToolFilter('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${toolFilter === 'all' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+          All
+        </button>
+        {tools.map(t => {
+          const meta = TOOL_META[t] ?? { icon: '📦', label: t }
+          return (
+            <button key={t} onClick={() => setToolFilter(t)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${toolFilter === t ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              {meta.icon} {meta.label}
+            </button>
+          )
+        })}
+        <button onClick={load} className="ml-auto p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg" title="Refresh">
+          <RefreshCw size={13} />
+        </button>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-1.5 mb-4 pb-3 border-b border-gray-100">
+        <span className="text-[10px] text-gray-400 mr-1 self-center">Access levels:</span>
+        {Object.entries(LEVEL_COLORS).map(([lvl, cls]) => (
+          <span key={lvl} className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${cls}`}>{lvl[0].toUpperCase()} = {lvl}</span>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-400"><RefreshCw size={16} className="animate-spin mx-auto mb-2" /><p className="text-sm">Loading…</p></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <Radio size={28} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">No activity yet</p>
+          <p className="text-xs mt-1">Sync village or run the seed script to see activity here</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(item => <ActivityItem key={item.id} item={item} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main VillagePage ─────────────────────────────────────────────────────────
 
 // ─── Feed Preview Modal ───────────────────────────────────────────────────────
@@ -519,7 +705,7 @@ function FeedPreviewModal({ member, onClose }) {
 }
 
 export default function VillagePage() {
-  const [tab,     setTab]     = useState('members') // 'members' | 'inbox' | 'tags'
+  const [tab,     setTab]     = useState('activity') // 'activity' | 'members' | 'inbox' | 'tags'
   const [status,  setStatus]  = useState(null)
   const [members, setMembers] = useState([])
   const [tags,    setTags]    = useState([])
@@ -567,9 +753,10 @@ export default function VillagePage() {
   const testUrl = status?.testUrl ?? 'http://localhost:7700/?member=test-villager'
 
   const TAB_ITEMS = [
-    { id: 'members', label: 'Members' },
-    { id: 'inbox',   label: 'Inbox', badge: unread > 0 ? unread : null },
-    { id: 'tags',    label: 'Tags' },
+    { id: 'activity', label: 'Activity' },
+    { id: 'members',  label: 'Members' },
+    { id: 'inbox',    label: 'Inbox', badge: unread > 0 ? unread : null },
+    { id: 'tags',     label: 'Tags' },
   ]
 
   return (
@@ -642,6 +829,8 @@ export default function VillagePage() {
       </div>
 
       {/* Tab content */}
+      {tab === 'activity' && <ActivityTab />}
+
       {tab === 'members' && (
         <div className="space-y-2">
           {members.length === 0 ? (

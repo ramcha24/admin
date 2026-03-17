@@ -1017,6 +1017,60 @@ ipcMain.handle('village:assignTag', (_, { memberId, tagId }) => {
   return { ok: true }
 })
 
+ipcMain.handle('village:getActivity', () => {
+  const { getMemberFeed } = require('./village')
+  const db = getDb()
+
+  const activities = db.prepare(`
+    SELECT * FROM village_activity ORDER BY created_at DESC LIMIT 100
+  `).all()
+
+  const members = db.prepare('SELECT * FROM village_members').all()
+  const tags    = db.prepare('SELECT * FROM village_tags').all()
+  const tagMap  = Object.fromEntries(tags.map(t => [t.id, t]))
+
+  // For each activity, compute which members can see it and at what level
+  const { resolveAccess } = (() => {
+    // Inline resolve since village.js doesn't export it
+    const resolveAccess = (memberId, toolId) => {
+      const override = db.prepare('SELECT level FROM village_access WHERE member_id=? AND tool_id=?').get(memberId, toolId)
+      if (override !== undefined) return override?.level ?? null
+      const member = db.prepare('SELECT tag_id FROM village_members WHERE id=?').get(memberId)
+      if (member?.tag_id) {
+        const td = db.prepare('SELECT level FROM village_tag_defaults WHERE tag_id=? AND tool_id=?').get(member.tag_id, toolId)
+        if (td) return td.level
+      }
+      return null
+    }
+    return { resolveAccess }
+  })()
+
+  const interactions = db.prepare('SELECT * FROM village_interactions ORDER BY created_at ASC').all()
+  const interactionsByActivity = {}
+  for (const i of interactions) {
+    if (!interactionsByActivity[i.activity_id]) interactionsByActivity[i.activity_id] = []
+    interactionsByActivity[i.activity_id].push({ ...i, payload: JSON.parse(i.payload) })
+  }
+
+  return activities.map(a => {
+    const payload = JSON.parse(a.payload)
+    const visibility = []
+    for (const m of members) {
+      const level = resolveAccess(m.id, a.source_tool)
+      if (level) {
+        const tag = m.tag_id ? tagMap[m.tag_id] : null
+        visibility.push({ memberId: m.id, name: m.name, emoji: m.avatar_emoji, level, tag })
+      }
+    }
+    return {
+      ...a,
+      payload,
+      visibility,
+      interactions: interactionsByActivity[a.id] ?? [],
+    }
+  })
+})
+
 // ─── Workflows ────────────────────────────────────────────────────────────────
 
 ipcMain.handle('workflows:getAll', () => {
@@ -1426,7 +1480,7 @@ ipcMain.handle('stories:getAll', () => {
 ipcMain.handle('seed:run', () => {
   const db = getDb()
 
-  // Ideas
+  // ── Ideas ──────────────────────────────────────────────────────────────────
   const insertIdea = db.prepare(`INSERT OR IGNORE INTO ideas (title, summary, raw_text, tags, source, created_at) VALUES (?, ?, ?, ?, 'seed', ?)`)
   const ideas = [
     ['Build a daily writing habit tracker', 'A lightweight tool that lets you log daily writing sessions, track word counts, and visualise streaks over time. Integrates with an LLM to suggest prompts when stuck.', JSON.stringify(['writing', 'habits', 'tool-idea']), '2026-03-10 09:00:00'],
@@ -1437,73 +1491,110 @@ ipcMain.handle('seed:run', () => {
   ]
   for (const [title, summary, tags, created_at] of ideas) insertIdea.run(title, summary, summary, tags, created_at)
 
-  // Tags
-  const insertTag = db.prepare(`INSERT OR IGNORE INTO village_tags (id, name, icon, color) VALUES (?, ?, ?, ?)`)
+  // ── Tags ───────────────────────────────────────────────────────────────────
+  const insertTag    = db.prepare(`INSERT OR IGNORE INTO village_tags (id, name, icon, color) VALUES (?, ?, ?, ?)`)
   const insertTagDef = db.prepare(`INSERT OR IGNORE INTO village_tag_defaults (tag_id, tool_id, level) VALUES (?, ?, ?)`)
-  insertTag.run('tag-family', 'Family', '🏠', '#10b981')
-  insertTag.run('tag-friends', 'Friends', '🫂', '#6366f1')
-  insertTag.run('tag-mentor', 'Mentor', '🎓', '#f59e0b')
-  for (const tool of ['grove', 'think', 'tantu']) {
-    insertTagDef.run('tag-family', tool, 'reader')
-    insertTagDef.run('tag-friends', tool, 'follower')
-    insertTagDef.run('tag-mentor', tool, 'collaborator')
-  }
+  insertTag.run('tag-family',     'Family',     '🏠', '#10b981')
+  insertTag.run('tag-friends',    'Friends',    '🫂', '#6366f1')
+  insertTag.run('tag-mentor',     'Mentor',     '🎓', '#f59e0b')
+  insertTag.run('tag-colleagues', 'Colleagues', '💼', '#0ea5e9')
+  // family: grove=reader, think=none
+  insertTagDef.run('tag-family', 'grove', 'reader')
+  // friends: grove=follower, think=follower
+  for (const t of ['grove', 'think']) insertTagDef.run('tag-friends', t, 'follower')
+  // mentor: grove+think=collaborator
+  for (const t of ['grove', 'think']) insertTagDef.run('tag-mentor', t, 'collaborator')
+  // colleagues: grove=reader, think=none
+  insertTagDef.run('tag-colleagues', 'grove', 'reader')
 
-  // Members
-  const insertMember = db.prepare(`INSERT OR IGNORE INTO village_members (id, name, email, avatar_emoji, tag_id, joined_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
+  // ── Members ────────────────────────────────────────────────────────────────
+  const insertMember = db.prepare(`INSERT OR IGNORE INTO village_members (id, name, email, avatar_emoji, tag_id, joined_at) VALUES (?, ?, ?, ?, ?, ?)`)
   const insertAccess = db.prepare(`INSERT OR IGNORE INTO village_access (member_id, tool_id, level) VALUES (?, ?, ?)`)
   const insertNotif  = db.prepare(`INSERT OR IGNORE INTO village_notifications (member_id, frequency) VALUES (?, ?)`)
   const members = [
-    ['member-alice', 'Alice Chen',       'alice@example.com',  '🌸', 'tag-family',  'daily'],
-    ['member-bob',   'Bob Ramirez',      'bob@example.com',    '🎸', 'tag-friends', 'weekly'],
-    ['member-priya', 'Priya Sharma',     'priya@example.com',  '📚', 'tag-mentor',  'daily'],
-    ['member-test',  '🧪 Village Tester', 'test@example.com',  '🧪', null,          'never'],
+    ['member-alice', 'Alice Chen',          'alice@example.com',  '🌸', 'tag-family',     'daily',  '2026-02-01 10:00:00'],
+    ['member-dad',   'Arun',                'arun@example.com',   '🧓', 'tag-family',     'weekly', '2026-02-01 10:00:00'],
+    ['member-bob',   'Bob Ramirez',         'bob@example.com',    '🎸', 'tag-friends',    'weekly', '2026-02-05 12:00:00'],
+    ['member-kavya', 'Kavya Nair',          'kavya@example.com',  '📖', 'tag-friends',    'daily',  '2026-02-10 08:00:00'],
+    ['member-priya', 'Priya Sharma',        'priya@example.com',  '📚', 'tag-mentor',     'daily',  '2026-01-15 09:00:00'],
+    ['member-david', 'David Kim',           'david@example.com',  '💻', 'tag-colleagues', 'never',  '2026-02-20 14:00:00'],
+    ['member-maya',  'Maya Torres',         'maya@example.com',   '🌙', 'tag-friends',    'weekly', '2026-02-15 16:00:00'],
+    ['member-test',  '🧪 Village Tester',   'test@example.com',   '🧪', null,             'never',  '2026-01-01 00:00:00'],
   ]
-  for (const [id, name, email, emoji, tag, freq] of members) {
-    insertMember.run(id, name, email, emoji, tag)
+  for (const [id, name, email, emoji, tag, freq, joined] of members) {
+    insertMember.run(id, name, email, emoji, tag, joined)
     insertNotif.run(id, freq)
   }
-  insertAccess.run('member-test',  'grove', 'reader')
-  insertAccess.run('member-alice', 'grove', 'commenter')
-  insertAccess.run('member-priya', 'grove', 'collaborator')
-  insertAccess.run('member-priya', 'think', 'collaborator')
-  insertAccess.run('member-alice', 'tantu', 'reader')
-  insertAccess.run('member-priya', 'tantu', 'collaborator')
+  // Access overrides (override tag defaults for specific members)
+  insertAccess.run('member-alice', 'grove', 'commenter')   // family default is reader → upgrade
+  insertAccess.run('member-kavya', 'grove', 'commenter')   // friends default is follower → upgrade
+  insertAccess.run('member-kavya', 'think', 'commenter')   // friends default is follower → upgrade
+  insertAccess.run('member-test',  'grove', 'reader')      // no tag → explicit grant
 
-  // Activity
+  // ── Village activity (12 items, 17-day arc) ────────────────────────────────
   const insertAct = db.prepare(`INSERT OR IGNORE INTO village_activity (id, source_tool, activity_type, payload, created_at) VALUES (?, ?, ?, ?, ?)`)
-  insertAct.run('act-grove-1', 'grove', 'session_logged', JSON.stringify({ owner: 'Ram', course: 'Machine Learning Fundamentals', duration: 45, notes: 'Covered backpropagation and gradient descent. The chain rule finally clicked.' }), '2026-03-14 19:30:00')
-  insertAct.run('act-grove-2', 'grove', 'session_logged', JSON.stringify({ owner: 'Ram', course: 'TypeScript Advanced Patterns', duration: 60, notes: 'Deep dived into conditional types and the infer keyword.' }), '2026-03-15 10:00:00')
-  insertAct.run('act-grove-3', 'grove', 'session_logged', JSON.stringify({ owner: 'Ram', course: 'Machine Learning Fundamentals', duration: 30, notes: '' }), '2026-03-16 08:45:00')
-  insertAct.run('act-think-1', 'think', 'research_started', JSON.stringify({ owner: 'Ram', topic: 'Retrieval-Augmented Generation', session_title: 'RAG Architecture Deep Dive', node_count: 1, goal: '' }), '2026-03-13 14:00:00')
-  insertAct.run('act-think-2', 'think', 'node_concluded', JSON.stringify({ owner: 'Ram', topic: 'Vector databases comparison', session_title: 'RAG Architecture Deep Dive', takeaway: 'Pinecone is easiest to start with, but pgvector is sufficient for < 1M vectors.' }), '2026-03-13 15:30:00')
-  insertAct.run('act-tantu-1', 'tantu', 'knot_saved', JSON.stringify({ owner: 'Ram', thread_title: 'Chapter 2 — Local sensitivity bounds', profile: 'research', duration_min: 90, progress: '3', subthread_title: 'Write lemma 2.3 statement', stop_reason: 'time_up', energy_end: '3' }), '2026-03-15 14:00:00')
-  insertAct.run('act-tantu-2', 'tantu', 'knot_saved', JSON.stringify({ owner: 'Ram', thread_title: 'Chapter 2 — Local sensitivity bounds', profile: 'research', duration_min: 60, progress: '4', subthread_title: 'Proof sketch for theorem 3', stop_reason: 'finished', energy_end: '4' }), '2026-03-16 10:30:00')
+  const act = (id, tool, type, payload, ts) => insertAct.run(id, tool, type, JSON.stringify(payload), ts)
 
-  // Interactions
-  const insertInt = db.prepare(`INSERT OR IGNORE INTO village_interactions (id, activity_id, member_id, member_name, type, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-  insertInt.run('int-1', 'act-grove-1', 'member-alice', 'Alice Chen',   'comment', JSON.stringify({ body: "Backprop finally clicking is such a great feeling! Do you use 3Blue1Brown's videos?" }), '2026-03-14 20:15:00')
-  insertInt.run('int-2', 'act-grove-2', 'member-priya', 'Priya Sharma', 'comment', JSON.stringify({ body: 'The `infer` keyword was a game-changer for me too. Try applying it to discriminated unions next!' }), '2026-03-15 11:00:00')
-  insertInt.run('int-3', 'act-think-2', 'member-priya', 'Priya Sharma', 'comment', JSON.stringify({ body: 'Good conclusion. Also worth checking out Weaviate for built-in BM25 hybrid search.' }), '2026-03-13 16:00:00')
-  insertInt.run('int-4', 'act-tantu-2', 'member-priya', 'Priya Sharma', 'suggest_action', JSON.stringify({ body: 'Try formalising the boundary condition before moving to theorem 4 — it will save you backtracking.' }), '2026-03-16 11:00:00')
+  // Week 1 — ML fundamentals start
+  act('act-grove-ml-1', 'grove', 'session_logged', { owner: 'Ram', course_title: 'Machine Learning Fundamentals', duration_minutes: 45, notes: 'Covered the math prerequisites — linear algebra refresher, dot products, matrix multiplication. Slow going but necessary.' }, '2026-03-01 19:00:00')
+  act('act-grove-ml-2', 'grove', 'session_logged', { owner: 'Ram', course_title: 'Machine Learning Fundamentals', duration_minutes: 60, notes: 'Gradient descent finally makes intuitive sense. The "roll a ball down a hill" analogy clicked.' }, '2026-03-03 20:30:00')
+  act('act-grove-streak-3', 'grove', 'streak_update', { owner: 'Ram', streak_days: 3, total_hours_this_week: 1.75, total_sessions: 3 }, '2026-03-03 20:45:00')
+  act('act-grove-ml-3', 'grove', 'session_logged', { owner: 'Ram', course_title: 'Machine Learning Fundamentals', duration_minutes: 45, notes: 'Backpropagation and the chain rule. Had to watch 3Blue1Brown twice.' }, '2026-03-05 21:00:00')
 
-  // Workflows
+  // Week 2 — TypeScript + RAG research
+  act('act-grove-ts-1', 'grove', 'session_logged', { owner: 'Ram', course_title: 'TypeScript Advanced Patterns', duration_minutes: 60, notes: 'Conditional types and the infer keyword. Mind-bending but powerful — especially for building type-safe parsers.' }, '2026-03-09 10:00:00')
+  act('act-think-rag-1', 'think', 'research_started', { owner: 'Ram', topic: 'Retrieval-Augmented Generation', session_title: 'RAG Architecture Deep Dive', node_count: 1, goal: 'Understand when to use RAG vs fine-tuning, and how to pick a vector DB' }, '2026-03-10 14:00:00')
+  act('act-think-rag-2', 'think', 'node_concluded', { owner: 'Ram', topic: 'Vector DB comparison', session_title: 'RAG Architecture Deep Dive', takeaway: 'Pinecone is quickest to prototype with, but pgvector is sufficient for < 1M vectors and avoids an extra service. Weaviate wins on hybrid BM25 + vector search. For this project: pgvector.' }, '2026-03-10 16:00:00')
+  act('act-grove-ts-2', 'grove', 'session_logged', { owner: 'Ram', course_title: 'TypeScript Advanced Patterns', duration_minutes: 90, notes: 'Mapped types and template literal types. Built a type-safe event emitter as an exercise.' }, '2026-03-12 11:00:00')
+  act('act-grove-streak-7', 'grove', 'streak_update', { owner: 'Ram', streak_days: 7, total_hours_this_week: 3.5, total_sessions: 8 }, '2026-03-12 11:30:00')
+
+  // Week 3 — current week
+  act('act-grove-alg-1', 'grove', 'session_logged', { owner: 'Ram', course_title: 'Algorithms & Data Structures', duration_minutes: 50, notes: 'Dynamic programming fundamentals — tabulation vs memoisation. Classic coin-change problem.' }, '2026-03-14 19:30:00')
+  act('act-grove-ml-4', 'grove', 'session_logged', { owner: 'Ram', course_title: 'Machine Learning Fundamentals', duration_minutes: 30, notes: 'Neural network architectures — feedforward, activation functions. Quick session before dinner.' }, '2026-03-16 08:45:00')
+  act('act-grove-streak-11', 'grove', 'streak_update', { owner: 'Ram', streak_days: 11, total_hours_this_week: 2.25, total_sessions: 11 }, '2026-03-16 09:00:00')
+
+  // ── Interactions (10 items, mix of read/unread) ────────────────────────────
+  const insertInt = db.prepare(`INSERT OR IGNORE INTO village_interactions (id, activity_id, member_id, member_name, type, payload, created_at, read_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+  const int = (id, actId, mId, mName, body, ts, readAt) => insertInt.run(id, actId, mId, mName, 'comment', JSON.stringify({ body }), ts, readAt ?? null)
+
+  int('int-alice-1', 'act-grove-ml-3', 'member-alice', 'Alice Chen',  "Wait you're learning ML?? that's so cool. is it hard?", '2026-03-05 22:15:00', '2026-03-06 09:00:00')
+  int('int-priya-1', 'act-grove-ml-3', 'member-priya', 'Priya Sharma', 'Good milestone. One tip: implement backprop from scratch in numpy before moving to PyTorch. Forces you to understand every gradient.', '2026-03-06 07:30:00', '2026-03-06 09:00:00')
+  int('int-kavya-1', 'act-grove-ts-1', 'member-kavya', 'Kavya Nair',  'The infer keyword was a game-changer for me too! Try using it to extract the return type of async functions — super practical.', '2026-03-09 11:30:00', '2026-03-09 19:00:00')
+  int('int-priya-2', 'act-grove-ts-1', 'member-priya', 'Priya Sharma', 'Conditional types + infer is where TypeScript starts feeling like a proper type-level language. Total Type Safety (book by Matt Pocock) is excellent for this.', '2026-03-09 13:00:00', '2026-03-09 19:00:00')
+  int('int-dad-1',   'act-grove-streak-3', 'member-dad', 'Arun',       '3 days in a row! Keep going beta 💪', '2026-03-03 21:30:00', '2026-03-04 08:00:00')
+  int('int-priya-3', 'act-think-rag-2', 'member-priya', 'Priya Sharma', 'Good call on pgvector. Also worth evaluating Qdrant — Rust-based, extremely fast for < 5M vectors. But pgvector is the right pragmatic choice to start.', '2026-03-10 16:45:00', '2026-03-11 09:00:00')
+  int('int-kavya-2', 'act-think-rag-2', 'member-kavya', 'Kavya Nair',  'Did you look at LlamaIndex for the orchestration layer? Works well with pgvector.', '2026-03-10 17:00:00', '2026-03-11 09:00:00')
+  // Unread (3)
+  int('int-alice-2', 'act-grove-streak-7', 'member-alice', 'Alice Chen', '7 days 🔥🔥 how are you keeping this up with work??', '2026-03-12 14:00:00', null)
+  int('int-david-1', 'act-grove-streak-7', 'member-david', 'David Kim',  "Impressive. I've been meaning to study TS patterns too — let me know if you want to do a review session.", '2026-03-12 15:30:00', null)
+  int('int-dad-2',   'act-grove-streak-11', 'member-dad', 'Arun',       '11 days! You are very dedicated. Proud of you 🙏', '2026-03-16 10:00:00', null)
+
+  // ── Workflows ──────────────────────────────────────────────────────────────
   const insertWf = db.prepare(`INSERT OR IGNORE INTO workflows (name, trigger_tool, trigger_event, action_type, action_payload, enabled, created_at) SELECT ?, ?, ?, ?, ?, ?, datetime('now') WHERE NOT EXISTS (SELECT 1 FROM workflows WHERE name=?)`)
   insertWf.run('Auto-sync village on Grove session', 'grove', 'session_logged', 'sync_village', '{}', 1, 'Auto-sync village on Grove session')
   insertWf.run('Log Think conclusions to console', 'think', 'node_concluded', 'log_to_console', '{}', 1, 'Log Think conclusions to console')
   insertWf.run('Weekly digest on Grove session (disabled)', 'grove', 'session_logged', 'send_email_digest', '{}', 0, 'Weekly digest on Grove session (disabled)')
-  insertWf.run('Sync village on Tantu knot', 'tantu', 'knot_saved', 'sync_village', '{}', 1, 'Sync village on Tantu knot')
 
-  return { ok: true, message: 'Sample data seeded successfully' }
+  // Streak snapshot
+  try { db.exec(`CREATE TABLE IF NOT EXISTS village_streak (date TEXT PRIMARY KEY, streak_days INTEGER, hours_this_week REAL, updated_at TEXT)`) } catch {}
+  db.prepare(`INSERT OR REPLACE INTO village_streak (date, streak_days, hours_this_week, updated_at) VALUES ('2026-03-16', 11, 2.25, datetime('now'))`).run()
+
+  return { ok: true, message: 'Sample data seeded: 8 members, 4 tags, 12 activities, 10 interactions' }
 })
 
 ipcMain.handle('seed:clear', () => {
   const db = getDb()
-  const SEED_TAG_IDS     = ['tag-family', 'tag-friends', 'tag-mentor']
-  const SEED_MEMBER_IDS  = ['member-alice', 'member-bob', 'member-priya', 'member-test']
-  const SEED_ACTIVITY_IDS = ['act-grove-1', 'act-grove-2', 'act-grove-3', 'act-think-1', 'act-think-2', 'act-tantu-1', 'act-tantu-2']
-  const SEED_INT_IDS     = ['int-1', 'int-2', 'int-3', 'int-4']
-  const SEED_WF_NAMES    = ['Auto-sync village on Grove session', 'Log Think conclusions to console', 'Weekly digest on Grove session (disabled)', 'Sync village on Tantu knot']
+  const SEED_TAG_IDS     = ['tag-family', 'tag-friends', 'tag-mentor', 'tag-colleagues']
+  const SEED_MEMBER_IDS  = ['member-alice', 'member-dad', 'member-bob', 'member-kavya', 'member-priya', 'member-david', 'member-maya', 'member-test']
+  const SEED_ACTIVITY_IDS = [
+    'act-grove-ml-1', 'act-grove-ml-2', 'act-grove-ml-3',
+    'act-grove-ts-1', 'act-grove-ts-2',
+    'act-grove-algo-1', 'act-grove-algo-2',
+    'act-grove-streak-3', 'act-grove-streak-7', 'act-grove-streak-11',
+    'act-think-rag-1', 'act-think-rag-2'
+  ]
+  const SEED_INT_IDS     = ['int-alice-1', 'int-priya-1', 'int-kavya-1', 'int-priya-2', 'int-dad-1', 'int-priya-3', 'int-kavya-2', 'int-alice-2', 'int-david-1', 'int-dad-2']
+  const SEED_WF_NAMES    = ['Auto-sync village on Grove session', 'Log Think conclusions to console', 'Weekly digest on Grove session (disabled)']
 
   const placeholders = (arr) => arr.map(() => '?').join(',')
 

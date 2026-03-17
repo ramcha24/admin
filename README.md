@@ -124,7 +124,24 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 <!-- STATUS:START -->
 ## Current Status
 
-> *This section is auto-updated by the post-commit hook.*
+> *Auto-updated 2026-03-17 by the post-commit hook.*
 
-No status generated yet — make a commit to populate this section.
+Recent commits have significantly expanded Admin's functionality, particularly around tool management and service contracts. The ToolDetail control panel, ToolDropdown filters, and a tool dev tracking system (phase badges, summaries, next steps) have been added. Inter-tool service contracts with capability gateways and IPC handlers are now implemented, allowing tools to seamlessly communicate via typed contracts. The Grove and Think tools are now fully integrated and discoverable.
+
+**Next steps:**
+- Implement the 'think' service contract, mirroring the 'grove' implementation.
+- Develop the handler logic within `electron/main.js` to process and respond to 'think' service calls.
+- Create a UI component to display the 'think' service in the tool card catalog, alongside the 'grove' service.
+
+**Recent commits:**
+- `9a13eaa` Track update-dev-status script in repo (scripts/)
+- `17a192b` Add fs:listDir and fs:readFile IPC handlers for codebase browser
+- `4d66f64` Add ToolDetail control panel, ToolDropdown filters, and admin README
+- `8b0cfb7` Add tool protocol compliance levels (L1/L2/L3) with badge on tool cards
+- `d62069e` Auto-install post-commit hook on every tool at scaffold and discover time
+- `165f3e9` Add dev-status.json — LLM-generated summary and next steps
+- `4711543` Read dev-status.json at discover time to sync LLM-generated summaries into DB
+- `82b5481` Integrate Tantu as first-class tool in Admin ecosystem
+- `e2c59ed` Stories: replace single-select tag pills with multi-select tool dropdown
+- `5ec7230` Add inter-tool service contract system with capability gateway
 <!-- STATUS:END -->

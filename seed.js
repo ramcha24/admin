@@ -76,21 +76,28 @@ const insertTagDefault = db.prepare(`
 `)
 
 const tags = [
-  { id: 'tag-family',  name: 'Family',  icon: '🏠', color: '#10b981' },
-  { id: 'tag-friends', name: 'Friends', icon: '🫂', color: '#6366f1' },
-  { id: 'tag-mentor',  name: 'Mentor',  icon: '🎓', color: '#f59e0b' },
+  { id: 'tag-family',     name: 'Family',     icon: '🏠', color: '#10b981' },
+  { id: 'tag-friends',    name: 'Friends',    icon: '🫂', color: '#6366f1' },
+  { id: 'tag-mentor',     name: 'Mentor',     icon: '🎓', color: '#f59e0b' },
+  { id: 'tag-colleagues', name: 'Colleagues', icon: '💼', color: '#0ea5e9' },
 ]
 
 for (const tag of tags) {
   insertTag.run(tag.id, tag.name, tag.icon, tag.color)
 }
 
-// Tag defaults: family gets reader access; friends get follower; mentor gets collaborator
-for (const tool of ['grove', 'think']) {
-  insertTagDefault.run('tag-family',  tool, 'reader')
-  insertTagDefault.run('tag-friends', tool, 'follower')
-  insertTagDefault.run('tag-mentor',  tool, 'collaborator')
-}
+// Tag defaults per tool:
+// family:     grove=reader,       think=none
+// friends:    grove=follower,     think=follower
+// mentor:     grove=collaborator, think=collaborator
+// colleagues: grove=reader,       think=none
+insertTagDefault.run('tag-family',     'grove', 'reader')
+insertTagDefault.run('tag-friends',    'grove', 'follower')
+insertTagDefault.run('tag-friends',    'think', 'follower')
+insertTagDefault.run('tag-mentor',     'grove', 'collaborator')
+insertTagDefault.run('tag-mentor',     'think', 'collaborator')
+insertTagDefault.run('tag-colleagues', 'grove', 'reader')
+
 console.log(`✓ Inserted ${tags.length} village tags with defaults`)
 
 // ── Village members ────────────────────────────────────────────────────────────
@@ -107,25 +114,34 @@ const insertNotif = db.prepare(`
 `)
 
 const members = [
-  { id: 'member-alice', name: 'Alice Chen',    email: 'alice@example.com',  emoji: '🌸', tag: 'tag-family',  freq: 'daily'  },
-  { id: 'member-bob',   name: 'Bob Ramirez',   email: 'bob@example.com',    emoji: '🎸', tag: 'tag-friends', freq: 'weekly' },
-  { id: 'member-priya', name: 'Priya Sharma',  email: 'priya@example.com',  emoji: '📚', tag: 'tag-mentor',  freq: 'daily'  },
-  { id: 'member-test',  name: '🧪 Village Tester', email: 'test@example.com', emoji: '🧪', tag: null,         freq: 'never'  },
+  // Family
+  { id: 'member-alice', name: 'Alice Chen',        email: 'alice@example.com',  emoji: '🌸', tag: 'tag-family',     freq: 'daily',  joined_at: '2026-02-01 10:00:00' },
+  { id: 'member-dad',   name: 'Arun',               email: 'arun@example.com',   emoji: '🧓', tag: 'tag-family',     freq: 'weekly', joined_at: '2026-02-01 10:05:00' },
+  // Friends
+  { id: 'member-bob',   name: 'Bob Ramirez',        email: 'bob@example.com',    emoji: '🎸', tag: 'tag-friends',    freq: 'weekly', joined_at: '2026-02-10 12:00:00' },
+  { id: 'member-kavya', name: 'Kavya Nair',         email: 'kavya@example.com',  emoji: '📖', tag: 'tag-friends',    freq: 'daily',  joined_at: '2026-02-10 12:30:00' },
+  { id: 'member-maya',  name: 'Maya Torres',        email: 'maya@example.com',   emoji: '🌙', tag: 'tag-friends',    freq: 'weekly', joined_at: '2026-02-15 09:00:00' },
+  // Mentor
+  { id: 'member-priya', name: 'Priya Sharma',       email: 'priya@example.com',  emoji: '📚', tag: 'tag-mentor',     freq: 'daily',  joined_at: '2026-01-20 08:00:00' },
+  // Colleagues
+  { id: 'member-david', name: 'David Kim',          email: 'david@example.com',  emoji: '💻', tag: 'tag-colleagues', freq: 'never',  joined_at: '2026-03-01 14:00:00' },
+  // No tag
+  { id: 'member-test',  name: '🧪 Village Tester',  email: 'test@example.com',   emoji: '🧪', tag: null,             freq: 'never',  joined_at: '2026-03-10 00:00:00' },
 ]
 
 for (const m of members) {
-  insertMember.run(m.id, m.name, m.email, m.emoji, m.tag, new Date().toISOString())
+  insertMember.run(m.id, m.name, m.email, m.emoji, m.tag, m.joined_at)
   insertNotif.run(m.id, m.freq)
 }
 
-// Override: tester gets reader access to grove
-insertAccess.run('member-test', 'grove', 'reader')
-// Alice gets commenter on grove
+// Access overrides (take precedence over tag defaults):
+// Alice: grove=commenter (overrides family default of reader)
 insertAccess.run('member-alice', 'grove', 'commenter')
-// Priya gets collaborator on everything
-for (const tool of ['grove', 'think']) {
-  insertAccess.run('member-priya', tool, 'collaborator')
-}
+// Kavya: grove=commenter, think=commenter (overrides friends default of follower)
+insertAccess.run('member-kavya', 'grove', 'commenter')
+insertAccess.run('member-kavya', 'think', 'commenter')
+// Tester: grove=reader (no tag, explicit grant)
+insertAccess.run('member-test', 'grove', 'reader')
 
 console.log(`✓ Inserted ${members.length} village members`)
 
@@ -137,40 +153,153 @@ const insertActivity = db.prepare(`
 `)
 
 const activities = [
+  // Week 1 — ML fundamentals start
   {
-    id: 'act-grove-1',
+    id: 'act-grove-ml-1',
     source: 'grove',
     type: 'session_logged',
-    payload: { owner: 'Ram', course: 'Machine Learning Fundamentals', duration: 45, notes: 'Covered backpropagation and gradient descent. The chain rule finally clicked.' },
+    payload: {
+      owner: 'Ram',
+      course_title: 'Machine Learning Fundamentals',
+      duration_minutes: 45,
+      notes: 'Covered the math prerequisites — linear algebra refresher, dot products, matrix multiplication. Slow going but necessary.',
+    },
+    created_at: '2026-03-01 19:00:00',
+  },
+  {
+    id: 'act-grove-ml-2',
+    source: 'grove',
+    type: 'session_logged',
+    payload: {
+      owner: 'Ram',
+      course_title: 'Machine Learning Fundamentals',
+      duration_minutes: 60,
+      notes: 'Gradient descent finally makes intuitive sense. The "roll a ball down a hill" analogy clicked.',
+    },
+    created_at: '2026-03-03 20:30:00',
+  },
+  {
+    id: 'act-grove-streak-3',
+    source: 'grove',
+    type: 'streak_update',
+    payload: {
+      owner: 'Ram',
+      streak_days: 3,
+      total_hours_this_week: 1.75,
+      total_sessions: 3,
+    },
+    created_at: '2026-03-03 20:45:00',
+  },
+  {
+    id: 'act-grove-ml-3',
+    source: 'grove',
+    type: 'session_logged',
+    payload: {
+      owner: 'Ram',
+      course_title: 'Machine Learning Fundamentals',
+      duration_minutes: 45,
+      notes: 'Backpropagation and the chain rule. Had to watch 3Blue1Brown twice.',
+    },
+    created_at: '2026-03-05 21:00:00',
+  },
+  // Week 2 — TypeScript deep dive + RAG research
+  {
+    id: 'act-grove-ts-1',
+    source: 'grove',
+    type: 'session_logged',
+    payload: {
+      owner: 'Ram',
+      course_title: 'TypeScript Advanced Patterns',
+      duration_minutes: 60,
+      notes: 'Conditional types and the infer keyword. Mind-bending but powerful — especially for building type-safe parsers.',
+    },
+    created_at: '2026-03-09 10:00:00',
+  },
+  {
+    id: 'act-think-rag-1',
+    source: 'think',
+    type: 'research_started',
+    payload: {
+      owner: 'Ram',
+      topic: 'Retrieval-Augmented Generation',
+      session_title: 'RAG Architecture Deep Dive',
+      node_count: 1,
+      goal: 'Understand when to use RAG vs fine-tuning, and how to pick a vector DB',
+    },
+    created_at: '2026-03-10 14:00:00',
+  },
+  {
+    id: 'act-think-rag-2',
+    source: 'think',
+    type: 'node_concluded',
+    payload: {
+      owner: 'Ram',
+      topic: 'Vector DB comparison',
+      session_title: 'RAG Architecture Deep Dive',
+      takeaway: 'Pinecone is quickest to prototype with, but pgvector is sufficient for < 1M vectors and avoids an extra service. Weaviate wins on hybrid BM25 + vector search. For this project: pgvector.',
+    },
+    created_at: '2026-03-10 16:00:00',
+  },
+  {
+    id: 'act-grove-ts-2',
+    source: 'grove',
+    type: 'session_logged',
+    payload: {
+      owner: 'Ram',
+      course_title: 'TypeScript Advanced Patterns',
+      duration_minutes: 90,
+      notes: 'Mapped types and template literal types. Built a type-safe event emitter as an exercise.',
+    },
+    created_at: '2026-03-12 11:00:00',
+  },
+  {
+    id: 'act-grove-streak-7',
+    source: 'grove',
+    type: 'streak_update',
+    payload: {
+      owner: 'Ram',
+      streak_days: 7,
+      total_hours_this_week: 3.5,
+      total_sessions: 8,
+    },
+    created_at: '2026-03-12 11:30:00',
+  },
+  // Week 3 — current week
+  {
+    id: 'act-grove-alg-1',
+    source: 'grove',
+    type: 'session_logged',
+    payload: {
+      owner: 'Ram',
+      course_title: 'Algorithms & Data Structures',
+      duration_minutes: 50,
+      notes: 'Dynamic programming fundamentals — tabulation vs memoisation. Classic coin-change problem.',
+    },
     created_at: '2026-03-14 19:30:00',
   },
   {
-    id: 'act-grove-2',
+    id: 'act-grove-ml-4',
     source: 'grove',
     type: 'session_logged',
-    payload: { owner: 'Ram', course: 'TypeScript Advanced Patterns', duration: 60, notes: 'Deep dived into conditional types and infer keyword.' },
-    created_at: '2026-03-15 10:00:00',
-  },
-  {
-    id: 'act-grove-3',
-    source: 'grove',
-    type: 'session_logged',
-    payload: { owner: 'Ram', course: 'Machine Learning Fundamentals', duration: 30, notes: '' },
+    payload: {
+      owner: 'Ram',
+      course_title: 'Machine Learning Fundamentals',
+      duration_minutes: 30,
+      notes: 'Neural network architectures — feedforward, activation functions. Quick session before dinner.',
+    },
     created_at: '2026-03-16 08:45:00',
   },
   {
-    id: 'act-think-1',
-    source: 'think',
-    type: 'research_started',
-    payload: { owner: 'Ram', topic: 'Retrieval-Augmented Generation', session_title: 'RAG Architecture Deep Dive', node_count: 1, goal: '' },
-    created_at: '2026-03-13 14:00:00',
-  },
-  {
-    id: 'act-think-2',
-    source: 'think',
-    type: 'node_concluded',
-    payload: { owner: 'Ram', topic: 'Vector databases comparison', session_title: 'RAG Architecture Deep Dive', takeaway: 'Pinecone is easiest to start with, but pgvector is sufficient for < 1M vectors and avoids an extra service.' },
-    created_at: '2026-03-13 15:30:00',
+    id: 'act-grove-streak-11',
+    source: 'grove',
+    type: 'streak_update',
+    payload: {
+      owner: 'Ram',
+      streak_days: 11,
+      total_hours_this_week: 2.25,
+      total_sessions: 11,
+    },
+    created_at: '2026-03-16 09:00:00',
   },
 ]
 
@@ -179,7 +308,7 @@ for (const a of activities) {
 }
 console.log(`✓ Inserted ${activities.length} village activity items`)
 
-// ── Sample village interactions (comments) ────────────────────────────────────
+// ── Village interactions (comments) ───────────────────────────────────────────
 
 const insertInteraction = db.prepare(`
   INSERT OR IGNORE INTO village_interactions (id, activity_id, member_id, member_name, type, payload, created_at, read_at)
@@ -187,42 +316,122 @@ const insertInteraction = db.prepare(`
 `)
 
 const interactions = [
+  // act-grove-ml-3 (backprop session, March 5) — read
   {
-    id: 'int-1',
-    activity_id: 'act-grove-1',
+    id: 'int-alice-1',
+    activity_id: 'act-grove-ml-3',
     member_id: 'member-alice',
     member_name: 'Alice Chen',
     type: 'comment',
-    payload: { body: 'Backprop finally clicking is such a great feeling! Do you use 3Blue1Brown\'s videos?' },
-    created_at: '2026-03-14 20:15:00',
-    read_at: null,
+    payload: { body: "Wait you're learning ML?? that's so cool. is it hard?" },
+    created_at: '2026-03-05 22:15:00',
+    read_at: '2026-03-06 09:00:00',
   },
   {
-    id: 'int-2',
-    activity_id: 'act-grove-2',
+    id: 'int-priya-1',
+    activity_id: 'act-grove-ml-3',
     member_id: 'member-priya',
     member_name: 'Priya Sharma',
     type: 'comment',
-    payload: { body: 'The `infer` keyword was a game-changer for me too. Try applying it to discriminated unions next!' },
-    created_at: '2026-03-15 11:00:00',
-    read_at: null,
+    payload: { body: 'Good milestone. One tip: implement backprop from scratch in numpy before moving to PyTorch. Forces you to understand every gradient.' },
+    created_at: '2026-03-06 07:30:00',
+    read_at: '2026-03-06 09:00:00',
+  },
+  // act-grove-ts-1 (conditional types, March 9) — read
+  {
+    id: 'int-kavya-1',
+    activity_id: 'act-grove-ts-1',
+    member_id: 'member-kavya',
+    member_name: 'Kavya Nair',
+    type: 'comment',
+    payload: { body: 'The infer keyword was a game-changer for me too! Try using it to extract the return type of async functions — super practical.' },
+    created_at: '2026-03-09 11:30:00',
+    read_at: '2026-03-09 19:00:00',
   },
   {
-    id: 'int-3',
-    activity_id: 'act-think-2',
+    id: 'int-priya-2',
+    activity_id: 'act-grove-ts-1',
     member_id: 'member-priya',
     member_name: 'Priya Sharma',
     type: 'comment',
-    payload: { body: 'Good conclusion. Also worth checking out Weaviate for built-in BM25 hybrid search.' },
-    created_at: '2026-03-13 16:00:00',
+    payload: { body: 'Conditional types + infer is where TypeScript starts feeling like a proper type-level language. Total Type Safety (book by Matt Pocock) is excellent for this.' },
+    created_at: '2026-03-09 13:00:00',
+    read_at: '2026-03-09 19:00:00',
+  },
+  // act-grove-streak-3 (3-day streak, March 3) — read
+  {
+    id: 'int-dad-1',
+    activity_id: 'act-grove-streak-3',
+    member_id: 'member-dad',
+    member_name: 'Arun',
+    type: 'comment',
+    payload: { body: '3 days in a row! Keep going beta 💪' },
+    created_at: '2026-03-03 21:30:00',
+    read_at: '2026-03-04 08:00:00',
+  },
+  // act-think-rag-2 (Vector DB conclusion, March 10) — read
+  {
+    id: 'int-priya-3',
+    activity_id: 'act-think-rag-2',
+    member_id: 'member-priya',
+    member_name: 'Priya Sharma',
+    type: 'comment',
+    payload: { body: 'Good call on pgvector. Also worth evaluating Qdrant — Rust-based, extremely fast for < 5M vectors, and has a good Python client. But pgvector is the right pragmatic choice to start.' },
+    created_at: '2026-03-10 16:45:00',
+    read_at: '2026-03-11 09:00:00',
+  },
+  {
+    id: 'int-kavya-2',
+    activity_id: 'act-think-rag-2',
+    member_id: 'member-kavya',
+    member_name: 'Kavya Nair',
+    type: 'comment',
+    payload: { body: 'Did you look at LlamaIndex for the orchestration layer? Works well with pgvector.' },
+    created_at: '2026-03-10 17:00:00',
+    read_at: '2026-03-11 09:00:00',
+  },
+  // act-grove-streak-7 (7-day streak, March 12) — UNREAD
+  {
+    id: 'int-alice-2',
+    activity_id: 'act-grove-streak-7',
+    member_id: 'member-alice',
+    member_name: 'Alice Chen',
+    type: 'comment',
+    payload: { body: '7 days 🔥🔥 how are you keeping this up with work??' },
+    created_at: '2026-03-12 14:00:00',
+    read_at: null,
+  },
+  {
+    id: 'int-david-1',
+    activity_id: 'act-grove-streak-7',
+    member_id: 'member-david',
+    member_name: 'David Kim',
+    type: 'comment',
+    payload: { body: "Impressive. I've been meaning to study TS patterns too — let me know if you want to do a review session." },
+    created_at: '2026-03-12 15:30:00',
+    read_at: null,
+  },
+  // act-grove-streak-11 (11-day streak, March 16) — UNREAD
+  {
+    id: 'int-dad-2',
+    activity_id: 'act-grove-streak-11',
+    member_id: 'member-dad',
+    member_name: 'Arun',
+    type: 'comment',
+    payload: { body: '11 days! You are very dedicated. Proud of you 🙏' },
+    created_at: '2026-03-16 10:00:00',
     read_at: null,
   },
 ]
 
 for (const i of interactions) {
-  insertInteraction.run(i.id, i.activity_id, i.member_id, i.member_name, i.type, JSON.stringify(i.payload), i.created_at, i.read_at)
+  insertInteraction.run(
+    i.id, i.activity_id, i.member_id, i.member_name,
+    i.type, JSON.stringify(i.payload), i.created_at, i.read_at
+  )
 }
-console.log(`✓ Inserted ${interactions.length} village interactions (all unread)`)
+const unreadCount = interactions.filter(i => i.read_at === null).length
+console.log(`✓ Inserted ${interactions.length} village interactions (${unreadCount} unread)`)
 
 // ── Sample workflows ───────────────────────────────────────────────────────────
 
@@ -281,9 +490,9 @@ db.exec(`
 
 db.prepare(`
   INSERT OR REPLACE INTO village_streak (date, streak_days, hours_this_week, updated_at)
-  VALUES ('2026-03-16', 3, 2.25, datetime('now'))
+  VALUES ('2026-03-16', 11, 2.25, datetime('now'))
 `).run()
-console.log('✓ Set streak snapshot: 3 days, 2.25h this week')
+console.log('✓ Set streak snapshot: 11 days, 2.25h this week')
 
 console.log('\n✅ Seeding complete. Restart Admin to see the data.')
 db.close()
