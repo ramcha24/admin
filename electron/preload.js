@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('api', {
   polishIdea:       (rawText)            => invoke('ideas:polish', rawText),
   extractIdeas:     (rawText)            => invoke('ideas:extract', rawText),
   planIdea:         (idea)               => invoke('ideas:plan', idea),
+  ingestIdeaFile:   (data)              => invoke('ideas:ingestFile', data),
   saveIdeaFile:     (data)              => invoke('ideas:saveFile', data),
   openIdeaFile:     (filePath)          => invoke('ideas:openFile', filePath),
 

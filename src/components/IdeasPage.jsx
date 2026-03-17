@@ -162,34 +162,25 @@ function StoreFlow({ onBack, onSaved }) {
   const fileRef = useRef()
 
   const loadFile = (file) => {
-    // Read as base64 for storage
-    const b64Reader = new FileReader()
-    b64Reader.onload = e => {
+    const reader = new FileReader()
+    reader.onload = async (e) => {
       const base64 = e.target.result.split(',')[1]
-      setAttachedFile({ filename: file.name, dataBase64: base64 })
-    }
-    b64Reader.readAsDataURL(file)
-    // Read as text and immediately kick off extraction — don't dump into textarea
-    const textReader = new FileReader()
-    textReader.onload = async (e) => {
-      const text = e.target.result
+      const fileData = { filename: file.name, dataBase64: base64, mimeType: file.type || '' }
+      setAttachedFile(fileData)
       setError(null)
       setStep('extracting')
-      const result = await window.api.extractIdeas(text)
+      const result = await window.api.ingestIdeaFile(fileData)
       if (!result.ok) { setError(result.error); setStep('input'); return }
       const ideas = result.ideas ?? []
       if (ideas.length === 1) {
-        // Single idea — go straight to the review canvas
         setPolished({ title: ideas[0].title, summary: ideas[0].summary, tags: ideas[0].tags ?? [] })
-        setRawText(text)
         setStep('canvas')
       } else {
         setExtracted(ideas.map((idea, i) => ({ ...idea, _key: i, _include: true, _mergeSelect: false })))
-        setRawText(text)
         setStep('multi')
       }
     }
-    textReader.readAsText(file)
+    reader.readAsDataURL(file)
   }
 
   const saveAttachment = async () => {
@@ -220,14 +211,16 @@ function StoreFlow({ onBack, onSaved }) {
 
   const handleSaveSingle = async () => {
     const fileFields = await saveAttachment()
-    await window.api.saveIdea({ title: polished.title, summary: polished.summary, raw_text: rawText, tags: polished.tags, source: 'store', ...fileFields })
+    const source = attachedFile ? 'file' : 'store'
+    await window.api.saveIdea({ title: polished.title, summary: polished.summary, raw_text: rawText, tags: polished.tags, source, ...fileFields })
     onSaved()
   }
 
   const handleSaveMulti = async () => {
     const fileFields = await saveAttachment()
+    const source = attachedFile ? 'file' : 'extract'
     for (const idea of extracted.filter(i => i._include)) {
-      await window.api.saveIdea({ title: idea.title, summary: idea.summary, raw_text: idea.excerpt ?? rawText.slice(0, 500), tags: idea.tags ?? [], source: 'extract', ...fileFields })
+      await window.api.saveIdea({ title: idea.title, summary: idea.summary, raw_text: idea.excerpt ?? '', tags: idea.tags ?? [], source, ...fileFields })
     }
     onSaved()
   }

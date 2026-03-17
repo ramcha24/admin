@@ -765,6 +765,51 @@ ipcMain.handle('ideas:save', (_, data) => {
   return { ok: true, id: result.lastInsertRowid }
 })
 
+// Ingest a file and extract its ideas — uses native PDF document blocks when
+// the provider is Claude, falls back to text decoding for all other file types.
+ipcMain.handle('ideas:ingestFile', async (_, { filename, dataBase64, mimeType }) => {
+  const db = getDb()
+  const provider = db.prepare("SELECT value FROM settings WHERE key='llm_provider'").get()?.value ?? 'claude'
+
+  const SYSTEM = `You are analyzing a document to capture its core idea(s).
+If the document expresses a single coherent idea, plan, or concept, return an array with exactly one entry.
+If it contains multiple distinct ideas, return one entry per idea.
+Each entry must have: "title" (5-8 word specific title), "summary" (2-4 sentences — what the idea IS and why it matters), "tags" (2-5 lowercase strings).
+Respond with a JSON array only. No markdown fences, no explanation.`
+
+  try {
+    const isPdf = mimeType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf')
+
+    if (isPdf && provider !== 'ollama') {
+      // Claude's native PDF document understanding — same mechanism used by Claude Code
+      const apiKey = db.prepare("SELECT value FROM settings WHERE key='anthropic_api_key'").get()?.value
+      if (!apiKey) throw new Error('No Anthropic API key configured. Add it in Settings.')
+      const model = db.prepare("SELECT value FROM settings WHERE key='llm_model'").get()?.value || 'claude-haiku-4-5-20251001'
+      const Anthropic = require('@anthropic-ai/sdk')
+      const client = new Anthropic.default({ apiKey })
+      const result = await client.messages.create({
+        model,
+        max_tokens: 2048,
+        system: SYSTEM,
+        messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: dataBase64 } }] }],
+      })
+      const parsed = JSON.parse(stripJsonFences(result.content[0].text))
+      return { ok: true, ideas: Array.isArray(parsed) ? parsed : [parsed] }
+    }
+
+    // Text files: decode base64 → UTF-8 text
+    const text = Buffer.from(dataBase64, 'base64').toString('utf-8')
+    const llmText = await llmComplete(
+      [{ role: 'user', content: text.slice(0, 12000) }],
+      { systemPrompt: SYSTEM, maxTokens: 2048 }
+    )
+    const parsed = JSON.parse(stripJsonFences(llmText))
+    return { ok: true, ideas: Array.isArray(parsed) ? parsed : [parsed] }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
 ipcMain.handle('ideas:saveFile', (_, { filename, dataBase64 }) => {
   const dir = path.join(app.getPath('userData'), 'idea-files')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
