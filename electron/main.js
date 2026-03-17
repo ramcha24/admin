@@ -314,6 +314,7 @@ ipcMain.handle('tools:discover', () => {
     tools.push({
       ...manifest,
       dirPath,
+      launch_app:     manifest.launch?.app ?? null,
       dev_phase:      devPhase,
       dev_summary:    row.dev_summary ?? '',
       next_steps:     JSON.parse(row.next_steps ?? '[]'),
