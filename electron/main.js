@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const http = require('http')
+const https = require('https')
 const { execFile, spawn } = require('child_process')
 const { initDatabase, getDb } = require('./database')
 const { startVillageServer, stopVillageServer, syncGroveActivity, syncThinkActivity, VILLAGE_PORT } = require('./village')
@@ -549,19 +551,34 @@ async function llmComplete(messages, { systemPrompt, maxTokens = 1024 } = {}) {
   const ollamaModel = db.prepare("SELECT value FROM settings WHERE key='ollama_model'").get()?.value ?? 'llama3'
 
   if (provider === 'ollama') {
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: ollamaModel,
-        messages: systemPrompt
-          ? [{ role: 'system', content: systemPrompt }, ...messages]
-          : messages,
-        stream: false,
-      }),
+    const body = JSON.stringify({
+      model: ollamaModel,
+      messages: systemPrompt
+        ? [{ role: 'system', content: systemPrompt }, ...messages]
+        : messages,
+      stream: false,
     })
-    if (!response.ok) throw new Error(`Ollama error: ${response.statusText}`)
-    const data = await response.json()
+    const data = await new Promise((resolve, reject) => {
+      const url = new URL(`${ollamaUrl}/api/chat`)
+      const lib = url.protocol === 'https:' ? https : http
+      const req = lib.request({
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      }, (res) => {
+        let raw = ''
+        res.on('data', chunk => { raw += chunk })
+        res.on('end', () => {
+          if (res.statusCode !== 200) return reject(new Error(`Ollama error ${res.statusCode}: ${raw}`))
+          try { resolve(JSON.parse(raw)) } catch (e) { reject(new Error(`Ollama JSON parse error: ${raw.slice(0, 200)}`)) }
+        })
+      })
+      req.on('error', reject)
+      req.write(body)
+      req.end()
+    })
     return data.message?.content ?? ''
   }
 
