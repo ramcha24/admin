@@ -1,5 +1,12 @@
 import React, { useState } from 'react'
-import { Play, Square, RotateCcw, Pencil, ChevronDown, ChevronRight, Tag, Bug, Sparkles, X, Check } from 'lucide-react'
+import { Play, Square, RotateCcw, Pencil, ChevronDown, ChevronRight, Tag, Bug, Sparkles, X, Check, ShieldCheck } from 'lucide-react'
+
+const PROTOCOL_LEVELS = {
+  0: { label: 'Unregistered', color: 'text-gray-300',  title: 'Missing tool.json, CLAUDE.md, or git repo' },
+  1: { label: 'L1',           color: 'text-amber-400', title: 'Level 1 — Registered: has tool.json, CLAUDE.md, git' },
+  2: { label: 'L2',           color: 'text-blue-500',  title: 'Level 2 — Active: adds USER_STORIES.md, post-commit hook, dev-status' },
+  3: { label: 'L3',           color: 'text-emerald-500', title: 'Level 3 — Integrated: adds services, village block' },
+}
 
 const PHASES = {
   planning:   { label: 'Planning',   bg: 'bg-amber-50',   text: 'text-amber-600',   dot: 'bg-amber-400'   },
@@ -84,6 +91,8 @@ export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onRes
   const nextSteps = tool.next_steps ?? []
   const openBugs     = issueCounts?.bug ?? 0
   const openFeatures = issueCounts?.feature ?? 0
+  const protocolLevel = tool.protocol_level ?? 0
+  const pl = PROTOCOL_LEVELS[protocolLevel] ?? PROTOCOL_LEVELS[0]
 
   const handleSaveIssue = async (data) => {
     await window.api.saveIssue(data)
@@ -117,6 +126,9 @@ export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onRes
                     <Tag size={9} />{tool.stable_tag}
                   </span>
                 )}
+                <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${pl.color}`} title={pl.title}>
+                  <ShieldCheck size={10} />{pl.label}
+                </span>
               </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <PhaseBadge phase={tool.dev_phase} />

@@ -191,14 +191,28 @@ ipcMain.handle('tools:discover', () => {
       db.prepare("UPDATE tool_registry SET stable_tag=? WHERE id=?").run(autoTag, manifest.id)
     }
 
+    // Protocol compliance level
+    const hasHook      = fs.existsSync(path.join(dirPath, '.git', 'hooks', 'post-commit'))
+    const hasDevStatus = fs.existsSync(path.join(dirPath, 'dev-status.json'))
+    const hasStories   = fs.existsSync(path.join(dirPath, 'USER_STORIES.md'))
+    const hasClaude    = fs.existsSync(path.join(dirPath, 'CLAUDE.md'))
+    const hasVillage   = !!(manifest.village?.activity_types?.length)
+    const hasServices  = !!(manifest.service_port && manifest.services?.length)
+    const devPhase     = row.dev_phase ?? 'planning'
+    let protocol_level = 0
+    if (fs.existsSync(path.join(dirPath, '.git')) && hasClaude) protocol_level = 1
+    if (protocol_level >= 1 && hasStories && hasHook && hasDevStatus && devPhase !== 'planning') protocol_level = 2
+    if (protocol_level >= 2 && hasServices && hasVillage) protocol_level = 3
+
     tools.push({
       ...manifest,
       dirPath,
-      dev_phase:   row.dev_phase  ?? 'planning',
-      dev_summary: row.dev_summary ?? '',
-      next_steps:  JSON.parse(row.next_steps ?? '[]'),
-      stable_tag:  row.stable_tag ?? autoTag ?? null,
-      has_session: hasClaudeSession(dirPath),
+      dev_phase:      devPhase,
+      dev_summary:    row.dev_summary ?? '',
+      next_steps:     JSON.parse(row.next_steps ?? '[]'),
+      stable_tag:     row.stable_tag ?? autoTag ?? null,
+      has_session:    hasClaudeSession(dirPath),
+      protocol_level,
     })
   }
 
