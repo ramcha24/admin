@@ -164,12 +164,12 @@ function syncThinkActivity() {
 
   // Sync concluded nodes (node_concluded activity type)
   const concluded = thinkDb.prepare(`
-    SELECT n.id, n.title, n.context_artifact, n.updated_at,
+    SELECT n.id, n.title, n.context_artifact, n.concluded_at,
            s.title as session_title
     FROM nodes n
     LEFT JOIN sessions s ON s.id = n.session_id
-    WHERE n.status = 'concluded' AND n.updated_at > ?
-    ORDER BY n.updated_at ASC
+    WHERE n.status = 'concluded' AND n.concluded_at > ?
+    ORDER BY n.concluded_at ASC
     LIMIT 100
   `).all(since)
 
@@ -190,7 +190,7 @@ function syncThinkActivity() {
         session_title: n.session_title ?? 'a session',
         takeaway: artifact?.takeaway ?? artifact?.summary ?? '',
       }),
-      n.updated_at
+      n.concluded_at
     )
   }
 

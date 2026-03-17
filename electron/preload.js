@@ -37,7 +37,10 @@ contextBridge.exposeInMainWorld('api', {
   // Village — members
   getVillageMembers:     ()       => invoke('village:getMembers'),
   addVillageMember:      (data)   => invoke('village:addMember', data),
-  updateVillageMember:   (data)   => invoke('village:updateMember', data),
+  updateVillageMember:          (data)   => invoke('village:updateMember', data),
+  getVillageMemberAccess:       (id)     => invoke('village:getMemberAccess', id),
+  setVillageNotificationFreq:   (data)   => invoke('village:setNotificationFrequency', data),
+  getVillagePreviewFeed:        (id)     => invoke('village:getPreviewFeed', id),
   setVillageAccess:      (data)   => invoke('village:setAccess', data),
   syncVillage:           ()       => invoke('village:sync'),
   getVillageStatus:      ()       => invoke('village:getStatus'),
@@ -65,4 +68,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Shell
   openExternal:     (url)                => invoke('shell:openExternal', url),
+
+  // User stories
+  getStories:       ()                   => invoke('stories:getAll'),
 })

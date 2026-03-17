@@ -6,6 +6,7 @@ import NewFlow from './components/NewFlow'
 import SettingsPage from './components/SettingsPage'
 import VillagePage from './components/VillagePage'
 import WorkflowsPage from './components/WorkflowsPage'
+import StoriesPage from './components/StoriesPage'
 
 export default function App() {
   const [page, setPage]           = useState('tools')
@@ -48,6 +49,7 @@ export default function App() {
         )}
         {page === 'village' && <VillagePage />}
         {page === 'workflows' && <WorkflowsPage />}
+        {page === 'stories' && <StoriesPage />}
         {page === 'settings' && <SettingsPage />}
       </main>
     </div>

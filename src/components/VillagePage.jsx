@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Users, Copy, RefreshCw, ExternalLink, Check, Plus, Inbox, Tag, Send, X, Pencil, Trash2 } from 'lucide-react'
+import { Users, Copy, RefreshCw, ExternalLink, Check, Plus, Inbox, Tag, Send, X, Pencil, Trash2, Eye } from 'lucide-react'
 
 const LEVELS = ['follower', 'reader', 'commenter', 'collaborator']
 const TOOLS  = ['grove', 'think']
@@ -17,25 +17,31 @@ function timeAgo(dateStr) {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+const FREQ_OPTIONS = ['daily', 'weekly', 'never']
+
 // ─── Edit Member Modal ────────────────────────────────────────────────────────
 
 function EditMemberModal({ member, tags, onSave, onClose }) {
-  const [email, setEmail]   = useState(member.email ?? '')
-  const [tagId, setTagId]   = useState(member.tag_id ?? '')
-  const [access, setAccess] = useState({ grove: '', think: '' })
-  const [loading, setLoading] = useState(true)
+  const [email,     setEmail]     = useState(member.email ?? '')
+  const [tagId,     setTagId]     = useState(member.tag_id ?? '')
+  const [access,    setAccess]    = useState({ grove: '', think: '' })
+  const [frequency, setFrequency] = useState('daily')
+  const [loading,   setLoading]   = useState(true)
 
   useEffect(() => {
-    // Load current per-tool access levels from DB (best-effort via member access rows)
-    // We pre-populate from what we can infer; user can override
-    setLoading(false)
-  }, [])
+    window.api.getVillageMemberAccess(member.id).then(data => {
+      setAccess(prev => ({ ...prev, ...data.access }))
+      setFrequency(data.frequency ?? 'daily')
+      setLoading(false)
+    })
+  }, [member.id])
 
   const submit = async () => {
     await window.api.updateVillageMember({ id: member.id, email, tagId: tagId || null })
     for (const [toolId, level] of Object.entries(access)) {
-      if (level) await window.api.setVillageAccess({ memberId: member.id, toolId, level })
+      await window.api.setVillageAccess({ memberId: member.id, toolId, level: level || null })
     }
+    await window.api.setVillageNotificationFreq({ memberId: member.id, frequency })
     onSave()
   }
 
@@ -44,15 +50,10 @@ function EditMemberModal({ member, tags, onSave, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Edit member</h2>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Edit member</h2>
+        <p className="text-sm text-gray-500 mb-4">{member.name}</p>
 
         <div className="space-y-3 mb-5">
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Name</label>
-            <div className="w-full px-3 py-2 border border-gray-100 rounded-lg text-sm bg-gray-50 text-gray-500">
-              {member.name}
-            </div>
-          </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Email</label>
             <input value={email} onChange={e => setEmail(e.target.value)} placeholder="alice@example.com"
@@ -73,12 +74,12 @@ function EditMemberModal({ member, tags, onSave, onClose }) {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Override tool access</label>
-            <p className="text-xs text-gray-400 mb-2">Leave "none" to inherit from tag defaults.</p>
+            <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Tool access</label>
+            <p className="text-xs text-gray-400 mb-2">Shown level overrides tag defaults.</p>
             {TOOLS.map(toolId => (
               <div key={toolId} className="flex items-center gap-3 mb-2">
                 <span className="text-sm text-gray-700 w-12 capitalize">{toolId}</span>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setAccess(a => ({ ...a, [toolId]: '' }))}
                     className={`px-2 py-1 rounded text-xs font-medium transition-colors ${!access[toolId] ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:bg-gray-100'}`}>
                     none
@@ -92,6 +93,18 @@ function EditMemberModal({ member, tags, onSave, onClose }) {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Email digest frequency</label>
+            <div className="flex gap-2">
+              {FREQ_OPTIONS.map(f => (
+                <button key={f} onClick={() => setFrequency(f)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${frequency === f ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -435,6 +448,76 @@ function TagsTab({ tags, onChanged }) {
 
 // ─── Main VillagePage ─────────────────────────────────────────────────────────
 
+// ─── Feed Preview Modal ───────────────────────────────────────────────────────
+
+function FeedPreviewModal({ member, onClose }) {
+  const [feed,    setFeed]    = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    window.api.getVillagePreviewFeed(member.id).then(data => {
+      setFeed(data)
+      setLoading(false)
+    })
+  }, [member.id])
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mt-8 mb-8">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-bold text-gray-900">Feed preview — {member.name}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">What {member.name} sees at their access level</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-5">
+          {loading ? (
+            <div className="text-center py-10 text-gray-400">
+              <RefreshCw size={18} className="animate-spin mx-auto mb-2" />
+              <p className="text-sm">Loading feed…</p>
+            </div>
+          ) : !feed || !feed.items.length ? (
+            <div className="text-center py-10 text-gray-400">
+              <Eye size={28} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm font-medium">No feed items</p>
+              <p className="text-xs mt-1">Sync activity first, or this member has no access to any tool.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {feed.items.map(item => (
+                <div key={item.id} className="border border-gray-100 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">
+                      {item.tool === 'grove' ? '🌿' : '🧠'} {item.tool}
+                    </span>
+                    <span className="text-xs text-gray-400 capitalize">{item.level}</span>
+                    <span className="ml-auto text-xs text-gray-400">{timeAgo(item.created_at)}</span>
+                  </div>
+                  <p className="text-sm text-gray-800">{item.rendered}</p>
+                  {item.detail?.course_title && (
+                    <p className="text-xs text-gray-500 mt-1">📖 {item.detail.course_title}
+                      {item.detail.duration_minutes ? ` · ${item.detail.duration_minutes} min` : ''}</p>
+                  )}
+                  {item.detail?.notes && (
+                    <p className="text-xs text-gray-400 italic mt-1">"{item.detail.notes}"</p>
+                  )}
+                  {item.interactions?.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-1.5">💬 {item.interactions.length} interaction{item.interactions.length !== 1 ? 's' : ''}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function VillagePage() {
   const [tab,     setTab]     = useState('members') // 'members' | 'inbox' | 'tags'
   const [status,  setStatus]  = useState(null)
@@ -442,9 +525,10 @@ export default function VillagePage() {
   const [tags,    setTags]    = useState([])
   const [copied,  setCopied]  = useState(null)
   const [syncing, setSyncing] = useState(false)
-  const [showAdd,    setShowAdd]    = useState(false)
-  const [editMember, setEditMember] = useState(null)
-  const [unread,     setUnread]     = useState(0)
+  const [showAdd,      setShowAdd]      = useState(false)
+  const [editMember,   setEditMember]   = useState(null)
+  const [previewMember, setPreviewMember] = useState(null)
+  const [unread,       setUnread]       = useState(0)
 
   const reload = useCallback(async () => {
     const [m, t, u] = await Promise.all([
@@ -492,6 +576,7 @@ export default function VillagePage() {
     <div className="flex-1 overflow-y-auto p-6 max-w-2xl">
       {showAdd && <AddMemberModal tags={tags} onAdd={async () => { setShowAdd(false); reload() }} onClose={() => setShowAdd(false)} />}
       {editMember && <EditMemberModal member={editMember} tags={tags} onSave={() => { setEditMember(null); reload() }} onClose={() => setEditMember(null)} />}
+      {previewMember && <FeedPreviewModal member={previewMember} onClose={() => setPreviewMember(null)} />}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -595,9 +680,14 @@ export default function VillagePage() {
                       title="Copy feed URL">
                       {copied === m.id ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
                     </button>
+                    <button onClick={() => setPreviewMember(m)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
+                      title="Preview feed">
+                      <Eye size={13} />
+                    </button>
                     <button onClick={() => window.api.openExternal(memberUrl)}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 transition-colors"
-                      title="Open feed">
+                      title="Open feed in browser">
                       <ExternalLink size={13} />
                     </button>
                     <button onClick={() => setEditMember(m)}
