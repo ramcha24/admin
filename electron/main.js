@@ -1301,6 +1301,50 @@ ipcMain.handle('shell:openExternal', (_, url) => {
   return true
 })
 
+// ─── Filesystem (code / doc browser) ─────────────────────────────────────────
+
+const FS_IGNORE = new Set([
+  'node_modules', '.git', 'dist', 'build', 'release', '__pycache__',
+  '.venv', '.DS_Store', '.pytest_cache', '*.node',
+])
+
+function shouldIgnore(name) {
+  return FS_IGNORE.has(name) || name.startsWith('.')
+}
+
+ipcMain.handle('fs:listDir', (_, dirPath) => {
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    return entries
+      .filter(e => !shouldIgnore(e.name))
+      .map(e => ({
+        name: e.name,
+        path: path.join(dirPath, e.name),
+        isDir: e.isDirectory(),
+        ext: e.isDirectory() ? null : path.extname(e.name).toLowerCase(),
+      }))
+      .sort((a, b) => {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+  } catch { return [] }
+})
+
+ipcMain.handle('fs:readFile', (_, filePath) => {
+  try {
+    // Safety: only allow reads inside the Admin parent directory
+    const resolved = path.resolve(filePath)
+    if (!resolved.startsWith(ADMIN_PARENT) && !resolved.startsWith(path.join(os.homedir(), 'Library'))) {
+      return { error: 'Access denied outside Admin workspace' }
+    }
+    const stat = fs.statSync(resolved)
+    if (stat.size > 500_000) return { error: 'File too large to display (>500 KB)' }
+    return { content: fs.readFileSync(resolved, 'utf8') }
+  } catch (e) {
+    return { error: e.message }
+  }
+})
+
 // ─── User stories ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('stories:getAll', () => {

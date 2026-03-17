@@ -85,6 +85,10 @@ contextBridge.exposeInMainWorld('api', {
   // User stories
   getStories:       ()                   => invoke('stories:getAll'),
 
+  // Filesystem (code / doc browser)
+  fsListDir:        (dirPath)            => invoke('fs:listDir', dirPath),
+  fsReadFile:       (filePath)           => invoke('fs:readFile', filePath),
+
   // Dev utilities
   runSeed:          ()                   => invoke('seed:run'),
   clearSeed:        ()                   => invoke('seed:clear'),
