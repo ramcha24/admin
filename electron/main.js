@@ -920,3 +920,78 @@ ipcMain.handle('shell:openExternal', (_, url) => {
   shell.openExternal(url)
   return true
 })
+
+// ─── User stories ─────────────────────────────────────────────────────────────
+
+ipcMain.handle('stories:getAll', () => {
+  // Parse USER_STORIES.md files from admin and each sub-tool
+  const sources = [
+    { tool: 'admin', file: path.join(ADMIN_PARENT, 'admin', 'USER_STORIES.md') },
+    { tool: 'grove', file: path.join(ADMIN_PARENT, 'grove', 'USER_STORIES.md') },
+    { tool: 'think', file: path.join(ADMIN_PARENT, 'think', 'USER_STORIES.md') },
+  ]
+
+  const stories = []
+
+  for (const { tool, file } of sources) {
+    if (!fs.existsSync(file)) continue
+    const text = fs.readFileSync(file, 'utf8')
+    const lines = text.split('\n')
+
+    let currentSection = ''
+    let currentTags = []
+    let i = 0
+    while (i < lines.length) {
+      const line = lines[i]
+
+      // Section heading (## 1. Tool Management)
+      if (line.startsWith('## ')) {
+        currentSection = line.replace(/^##\s+/, '').replace(/^\d+\.\s+/, '')
+        currentTags = []
+        i++
+        continue
+      }
+
+      // Tags line (> Tags: admin, grove)
+      if (line.startsWith('> Tags:')) {
+        currentTags = line.replace('> Tags:', '').split(',').map(t => t.trim()).filter(Boolean)
+        i++
+        continue
+      }
+
+      // Story heading (### 1.1 Title)
+      if (line.startsWith('### ')) {
+        const storyId = line.match(/###\s+([\d.]+)/)?.[1] ?? ''
+        const title = line.replace(/^###\s+[\d.]+\s+/, '')
+        i++
+
+        // Next non-empty line should be the bold user story sentence
+        while (i < lines.length && lines[i].trim() === '') i++
+        const sentence = lines[i]?.replace(/\*\*/g, '') ?? ''
+        i++
+
+        // Collect acceptance criteria
+        const criteria = []
+        while (i < lines.length && !lines[i].startsWith('### ') && !lines[i].startsWith('## ')) {
+          const cl = lines[i].trim()
+          if (cl.startsWith('- ')) criteria.push(cl.slice(2))
+          i++
+        }
+
+        stories.push({
+          id: `${tool}-${storyId}`,
+          source: tool,
+          section: currentSection,
+          storyId,
+          title,
+          sentence,
+          criteria,
+          tags: currentTags,
+        })
+        continue
+      }
+      i++
+    }
+  }
+  return stories
+})

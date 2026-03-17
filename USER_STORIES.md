@@ -8,6 +8,8 @@ Acceptance criteria are the observable outcomes that confirm the story works.
 
 ## 1. Tool Management
 
+> Tags: admin
+
 ### 1.1 View all tools
 **As a user, I can open Admin and see all tools in the suite displayed as cards, so that I have a single overview of my personal OS.**
 
@@ -49,6 +51,8 @@ Acceptance criteria:
 
 ## 2. Ideas
 
+> Tags: admin
+
 ### 2.1 Polish a single rough note into a structured idea
 **As a user, I can paste raw text (a note, excerpt, or brain dump) and have it polished into a titled, summarised idea with tags, so that my scattered thoughts are stored in a searchable, readable form.**
 
@@ -70,12 +74,15 @@ Acceptance criteria:
 - Clicking Save All writes only the checked ideas to the database
 
 ### 2.3 Browse and manage stored ideas
-**As a user, I can see all stored ideas in a grid, so that I can review what I've captured over time.**
+**As a user, I can see all stored ideas in a grid, search by keyword, and filter by tag, so that I can quickly find what I've captured.**
 
 Acceptance criteria:
 - Ideas page shows cards with title, summary (truncated), tags, and date
 - Cards are ordered most-recent first
 - Tags render as coloured pills
+- Search bar filters ideas in real time by title, summary, or tag
+- Clicking a tag pill filters to only ideas with that tag
+- Clicking the active tag again clears the filter
 
 ### 2.4 Turn a stored idea into a tool plan
 **As a user, I can click "Plan this" on any idea, so that I can immediately start building it with Claude Code.**
@@ -85,9 +92,20 @@ Acceptance criteria:
 - Terminal runs `claude` in the Admin parent directory with the idea title and summary as the opening prompt
 - The existing idea card is unchanged
 
+### 2.5 Delete a stored idea
+**As a user, I can delete an idea I no longer need, so that my ideas list stays curated.**
+
+Acceptance criteria:
+- Each idea card shows a trash icon
+- Clicking the trash icon shows a confirmation prompt inline
+- Clicking Delete removes the idea from the database and the card disappears immediately
+- Clicking Cancel dismisses without deleting
+
 ---
 
 ## 3. Village — Members
+
+> Tags: admin, village
 
 ### 3.1 Add a village member
 **As a user, I can add someone to my village with a name, email, and per-tool access level, so that I can share specific tools with specific people.**
@@ -131,9 +149,27 @@ Acceptance criteria:
 - After assigning, the member card shows the tag badge (emoji + name)
 - If no per-person access override exists, access resolves from the tag's defaults
 
+### 3.6 Preview a member's personalised feed from the admin panel
+**As a user, I can click a preview button on any member card to see exactly what their feed looks like, so that I can verify their access before sending them the URL.**
+
+Acceptance criteria:
+- Clicking the eye icon on a member card opens a preview panel
+- The panel shows the member's feed items inline, rendered with the correct access level
+- Empty state message shows if the member has no visible activity
+
+### 3.7 Set email notification frequency per member
+**As a user, I can set a notification frequency (daily, weekly, never) for each member, so that digest emails are sent at the right cadence.**
+
+Acceptance criteria:
+- Edit member modal shows a frequency selector (daily / weekly / never)
+- Saving updates the `village_notifications` row for that member
+- The selected frequency is pre-filled on next open of the edit modal
+
 ---
 
 ## 4. Village — Tags
+
+> Tags: admin, village
 
 ### 4.1 Create a tag with default access levels
 **As a user, I can create a named tag (e.g. "family") with default tool access levels, so that I can onboard groups of people consistently without repeating configuration.**
@@ -161,6 +197,8 @@ Acceptance criteria:
 ---
 
 ## 5. Village — Activity Inbox
+
+> Tags: admin, village
 
 ### 5.1 See member interactions in an inbox
 **As a user, I can open the Inbox tab and see all comments and reactions from village members, so that I know when someone has engaged with my activity feed.**
@@ -199,6 +237,8 @@ Acceptance criteria:
 ---
 
 ## 6. Village — Activity Feed (Web App)
+
+> Tags: admin, village, grove, think
 
 ### 6.1 Members see personalised activity based on their access level
 **As a village member, I see only the information I'm authorised to see based on my access level, so that privacy is preserved.**
@@ -241,6 +281,8 @@ Acceptance criteria:
 
 ## 7. Village — Sync
 
+> Tags: admin, grove, think
+
 ### 7.1 Manual sync
 **As a user, I can click the sync button in Village, so that I can pull in the latest Grove activity on demand.**
 
@@ -271,6 +313,8 @@ Acceptance criteria:
 
 ## 8. Village — Supabase Cloud Sync *(requires Supabase configured)*
 
+> Tags: admin, village
+
 ### 8.1 Push activity to Supabase
 **As a user, I can sync local village activity to Supabase, so that the deployed web app can serve up-to-date feeds without Admin running.**
 
@@ -290,6 +334,8 @@ Acceptance criteria:
 ---
 
 ## 9. Village — Email Digest *(requires SMTP configured)*
+
+> Tags: admin, village
 
 ### 9.1 Send a digest manually
 **As a user, I can click "Send digest now" in Settings, so that I can test the email before the daily cron fires.**
@@ -312,6 +358,8 @@ Acceptance criteria:
 ---
 
 ## 10. Workflows
+
+> Tags: admin
 
 ### 10.1 Create a workflow
 **As a user, I can define a workflow that fires an action when a specific tool emits an event, so that I can automate repetitive responses to activity.**
@@ -352,6 +400,8 @@ Acceptance criteria:
 
 ## 11. Settings
 
+> Tags: admin
+
 ### 11.1 Switch LLM provider
 **As a user, I can switch between Claude (cloud) and Ollama (local) as the LLM backend, so that I can choose cost vs. privacy tradeoffs per session.**
 
@@ -381,6 +431,8 @@ Acceptance criteria:
 ---
 
 ## 12. Inter-tool Event Bus
+
+> Tags: admin
 
 ### 12.1 Tools can publish events
 **As a tool developer, I can call `window.api.publishEvent(toolId, eventType, payload)` to broadcast an event to the Admin bus, so that other tools and workflows can react.**

@@ -1,5 +1,5 @@
 import React from 'react'
-import { LayoutGrid, Lightbulb, Plus, GitBranch, Settings, Users } from 'lucide-react'
+import { LayoutGrid, Lightbulb, Plus, GitBranch, Settings, Users, BookOpen } from 'lucide-react'
 
 const NAV = [
   { id: 'tools',     label: 'Tools',     icon: LayoutGrid },
@@ -7,6 +7,7 @@ const NAV = [
   { id: 'village',   label: 'Village',   icon: Users },
   { id: 'new',       label: 'New',       icon: Plus },
   { id: 'workflows', label: 'Workflows', icon: GitBranch },
+  { id: 'stories',   label: 'Stories',   icon: BookOpen },
   { id: 'settings',  label: 'Settings',  icon: Settings },
 ]
 

@@ -68,4 +68,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Shell
   openExternal:     (url)                => invoke('shell:openExternal', url),
+
+  // User stories
+  getStories:       ()                   => invoke('stories:getAll'),
 })
