@@ -1,8 +1,10 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
 const http = require('http')
 const https = require('https')
+const { execSync } = require('child_process')
 const { execFile, spawn } = require('child_process')
 const { initDatabase, getDb } = require('./database')
 const { startVillageServer, stopVillageServer, syncGroveActivity, syncThinkActivity, VILLAGE_PORT } = require('./village')
@@ -56,6 +58,26 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
+// ─── Tool dev helpers ─────────────────────────────────────────────────────────
+
+function hasClaudeSession(toolDir) {
+  // Claude encodes the project path by replacing every / with -
+  const encoded = toolDir.replace(/\//g, '-')
+  const sessionsDir = path.join(os.homedir(), '.claude', 'projects', encoded)
+  if (!fs.existsSync(sessionsDir)) return false
+  return fs.readdirSync(sessionsDir).some(f => f.endsWith('.jsonl'))
+}
+
+function detectLatestTag(toolDir) {
+  try {
+    const tag = execSync(
+      `git -C '${toolDir}' describe --tags --abbrev=0 2>/dev/null`,
+      { encoding: 'utf8', timeout: 3000 }
+    ).trim()
+    return tag || null
+  } catch { return null }
+}
+
 // ─── Tool discovery ───────────────────────────────────────────────────────────
 
 ipcMain.handle('tools:discover', () => {
@@ -83,28 +105,45 @@ ipcMain.handle('tools:discover', () => {
 
     const dirPath = path.join(ADMIN_PARENT, entry.name)
 
+    // Upsert: update manifest fields on re-scan but preserve dev_phase/dev_summary/next_steps
     db.prepare(`
-      INSERT OR REPLACE INTO tool_registry
+      INSERT INTO tool_registry
         (id, name, icon, description, color, version, status, dir_path,
-         launch_dev, launch_app, capabilities, emits, listens, last_seen_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         launch_dev, launch_app, capabilities, emits, listens, last_seen_at,
+         dev_phase, dev_summary, next_steps, stable_tag)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 'planning', '', '[]', NULL)
+      ON CONFLICT(id) DO UPDATE SET
+        name=excluded.name, icon=excluded.icon, description=excluded.description,
+        color=excluded.color, version=excluded.version, status=excluded.status,
+        dir_path=excluded.dir_path, launch_dev=excluded.launch_dev,
+        launch_app=excluded.launch_app, capabilities=excluded.capabilities,
+        emits=excluded.emits, listens=excluded.listens, last_seen_at=excluded.last_seen_at
     `).run(
-      manifest.id,
-      manifest.name,
-      manifest.icon,
-      manifest.description,
-      manifest.color,
-      manifest.version,
-      manifest.status,
-      dirPath,
-      manifest.launch?.dev ?? null,
-      manifest.launch?.app ?? null,
+      manifest.id, manifest.name, manifest.icon, manifest.description,
+      manifest.color, manifest.version, manifest.status, dirPath,
+      manifest.launch?.dev ?? null, manifest.launch?.app ?? null,
       JSON.stringify(manifest.capabilities ?? []),
       JSON.stringify(manifest.emits ?? []),
       JSON.stringify(manifest.listens ?? [])
     )
 
-    tools.push({ ...manifest, dirPath })
+    const row = db.prepare('SELECT * FROM tool_registry WHERE id=?').get(manifest.id)
+    const autoTag = detectLatestTag(dirPath)
+
+    // Persist auto-detected tag if stable_tag not already set manually
+    if (autoTag && !row.stable_tag) {
+      db.prepare("UPDATE tool_registry SET stable_tag=? WHERE id=?").run(autoTag, manifest.id)
+    }
+
+    tools.push({
+      ...manifest,
+      dirPath,
+      dev_phase:   row.dev_phase  ?? 'planning',
+      dev_summary: row.dev_summary ?? '',
+      next_steps:  JSON.parse(row.next_steps ?? '[]'),
+      stable_tag:  row.stable_tag ?? autoTag ?? null,
+      has_session: hasClaudeSession(dirPath),
+    })
   }
 
   return tools
@@ -148,6 +187,29 @@ ipcMain.handle('tools:stop', (_, id) => {
   }
   delete runningTools[id]
   return { ok: true }
+})
+
+ipcMain.handle('tools:updateDevInfo', (_, { id, dev_phase, dev_summary, next_steps, stable_tag }) => {
+  getDb().prepare(`
+    UPDATE tool_registry
+    SET dev_phase=?, dev_summary=?, next_steps=?, stable_tag=?
+    WHERE id=?
+  `).run(dev_phase, dev_summary, JSON.stringify(next_steps ?? []), stable_tag ?? null, id)
+  return { ok: true }
+})
+
+ipcMain.handle('tools:resume', async (_, id) => {
+  const tool = getDb().prepare('SELECT * FROM tool_registry WHERE id=?').get(id)
+  if (!tool) return { ok: false, error: 'Tool not found' }
+
+  const cmd = hasClaudeSession(tool.dir_path)
+    ? `cd '${tool.dir_path}' && claude --continue`
+    : `cd '${tool.dir_path}' && claude`
+
+  const script = `tell application "Terminal"\nactivate\ndo script "${cmd}"\nend tell`
+  return new Promise(resolve => {
+    execFile('osascript', ['-e', script], err => resolve({ ok: !err, error: err?.message }))
+  })
 })
 
 ipcMain.handle('tools:status', () => {

@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('api', {
   launchTool:       (id)        => invoke('tools:launch', id),
   stopTool:         (id)        => invoke('tools:stop', id),
   getToolStatus:    ()           => invoke('tools:status'),
+  updateToolDevInfo:(data)       => invoke('tools:updateDevInfo', data),
+  resumeTool:       (id)        => invoke('tools:resume', id),
 
   // New tool planning & scaffolding
   planTool:         (description)        => invoke('tools:plan', description),

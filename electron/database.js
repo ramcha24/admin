@@ -168,6 +168,12 @@ function createSchema() {
   setDefault.run('smtp_pass', '')
   setDefault.run('smtp_from', '')
 
+  // Tool dev-tracking columns (additive migrations)
+  try { db.exec("ALTER TABLE tool_registry ADD COLUMN dev_phase TEXT NOT NULL DEFAULT 'planning'") } catch (_) {}
+  try { db.exec("ALTER TABLE tool_registry ADD COLUMN dev_summary TEXT NOT NULL DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE tool_registry ADD COLUMN next_steps TEXT NOT NULL DEFAULT '[]'") } catch (_) {}
+  try { db.exec("ALTER TABLE tool_registry ADD COLUMN stable_tag TEXT DEFAULT NULL") } catch (_) {}
+
   // Seed default village identity
   db.prepare(`
     INSERT OR IGNORE INTO village_identity (id, username, display_name, avatar_emoji)
