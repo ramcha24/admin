@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('api', {
   polishIdea:       (rawText)            => invoke('ideas:polish', rawText),
   extractIdeas:     (rawText)            => invoke('ideas:extract', rawText),
   planIdea:         (idea)               => invoke('ideas:plan', idea),
+  saveIdeaFile:     (data)              => invoke('ideas:saveFile', data),
+  openIdeaFile:     (filePath)          => invoke('ideas:openFile', filePath),
 
   // Inter-tool event bus
   publishEvent:     (sourceId, eventType, payload) => invoke('events:publish', sourceId, eventType, payload),

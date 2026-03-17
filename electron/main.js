@@ -757,12 +757,26 @@ ipcMain.handle('ideas:getAll', () => {
 })
 
 ipcMain.handle('ideas:save', (_, data) => {
-  const { title, summary, raw_text, tags = [], source = '' } = data
+  const { title, summary, raw_text, tags = [], source = '', source_filename = '', attached_file_path = '' } = data
   const result = getDb().prepare(`
-    INSERT INTO ideas (title, summary, raw_text, tags, source)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(title, summary, raw_text, JSON.stringify(tags), source)
+    INSERT INTO ideas (title, summary, raw_text, tags, source, source_filename, attached_file_path)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(title, summary, raw_text, JSON.stringify(tags), source, source_filename, attached_file_path)
   return { ok: true, id: result.lastInsertRowid }
+})
+
+ipcMain.handle('ideas:saveFile', (_, { filename, dataBase64 }) => {
+  const dir = path.join(app.getPath('userData'), 'idea-files')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  const safeName = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+  const filePath = path.join(dir, safeName)
+  fs.writeFileSync(filePath, Buffer.from(dataBase64, 'base64'))
+  return { ok: true, path: filePath }
+})
+
+ipcMain.handle('ideas:openFile', (_, filePath) => {
+  shell.openPath(filePath)
+  return { ok: true }
 })
 
 ipcMain.handle('ideas:update', (_, { id, title, summary, tags }) => {
@@ -1313,12 +1327,14 @@ ipcMain.handle('issues:save', (_, { tool_id, type, title, description }) => {
   return db.prepare('SELECT * FROM issues WHERE id=?').get(result.lastInsertRowid)
 })
 
-ipcMain.handle('issues:update', (_, { id, title, description, status }) => {
+ipcMain.handle('issues:update', (_, { id, title, description, status, resolution_note }) => {
   const db = getDb()
-  const resolved_at = status === 'done' ? new Date().toISOString() : null
+  const current = db.prepare('SELECT status FROM issues WHERE id=?').get(id)
+  const newStatus = status ?? current?.status
+  const resolved_at = newStatus === 'done' ? (db.prepare('SELECT resolved_at FROM issues WHERE id=?').get(id)?.resolved_at ?? new Date().toISOString()) : null
   db.prepare(
-    'UPDATE issues SET title=COALESCE(?,title), description=COALESCE(?,description), status=COALESCE(?,status), resolved_at=? WHERE id=?'
-  ).run(title ?? null, description ?? null, status ?? null, resolved_at, id)
+    'UPDATE issues SET title=COALESCE(?,title), description=COALESCE(?,description), status=COALESCE(?,status), resolved_at=?, resolution_note=COALESCE(?,resolution_note) WHERE id=?'
+  ).run(title ?? null, description ?? null, status ?? null, resolved_at, resolution_note ?? null, id)
   return db.prepare('SELECT * FROM issues WHERE id=?').get(id)
 })
 

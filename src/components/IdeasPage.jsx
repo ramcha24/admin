@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import {
   Lightbulb, Trash2, Terminal, RefreshCw, Plus, Search, X,
-  Pencil, Check, ArrowLeft, Loader, Upload,
+  Pencil, Check, ArrowLeft, Loader, Upload, Merge, Paperclip, ExternalLink,
 } from 'lucide-react'
 
 // ─── Edit modal ───────────────────────────────────────────────────────────────
@@ -122,9 +122,22 @@ function IdeaCard({ idea, onPlan, onDelete, onEdit, planning }) {
       )}
 
       <div className="flex items-center justify-between pt-1 border-t border-gray-50">
-        <span className="text-xs text-gray-400">
-          {new Date(idea.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">
+            {new Date(idea.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </span>
+          {idea.source_filename && (
+            <button
+              onClick={() => idea.attached_file_path && window.api.openIdeaFile(idea.attached_file_path)}
+              title={`Open ${idea.source_filename}`}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 text-[10px] transition-colors"
+            >
+              <Paperclip size={9} />
+              <span className="max-w-[100px] truncate">{idea.source_filename}</span>
+              <ExternalLink size={9} />
+            </button>
+          )}
+        </div>
         <button onClick={() => onPlan(idea)} disabled={planning === idea.id}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50">
           {planning === idea.id ? <RefreshCw size={12} className="animate-spin" /> : <Terminal size={12} />}
@@ -138,18 +151,36 @@ function IdeaCard({ idea, onPlan, onDelete, onEdit, planning }) {
 // ─── Store flow (inline) ──────────────────────────────────────────────────────
 
 function StoreFlow({ onBack, onSaved }) {
-  const [step, setStep]         = useState('input')
-  const [rawText, setRawText]   = useState('')
+  const [step, setStep]           = useState('input')
+  const [rawText, setRawText]     = useState('')
   const [isDragging, setDragging] = useState(false)
-  const [polished, setPolished] = useState(null)
+  const [polished, setPolished]   = useState(null)
   const [extracted, setExtracted] = useState([])
-  const [error, setError]       = useState(null)
+  const [mergePanel, setMergePanel] = useState(null)
+  const [error, setError]         = useState(null)
+  const [attachedFile, setAttachedFile] = useState(null) // { filename, dataBase64 }
   const fileRef = useRef()
 
   const loadFile = (file) => {
-    const reader = new FileReader()
-    reader.onload = e => setRawText(e.target.result)
-    reader.readAsText(file)
+    // Read as base64 for storage
+    const b64Reader = new FileReader()
+    b64Reader.onload = e => {
+      const base64 = e.target.result.split(',')[1] // strip data URL prefix
+      setAttachedFile({ filename: file.name, dataBase64: base64 })
+    }
+    b64Reader.readAsDataURL(file)
+    // Read as text for the textarea
+    const textReader = new FileReader()
+    textReader.onload = e => setRawText(e.target.result)
+    textReader.readAsText(file)
+  }
+
+  const saveAttachment = async () => {
+    if (!attachedFile) return { source_filename: '', attached_file_path: '' }
+    const result = await window.api.saveIdeaFile(attachedFile)
+    return result.ok
+      ? { source_filename: attachedFile.filename, attached_file_path: result.path }
+      : { source_filename: attachedFile.filename, attached_file_path: '' }
   }
 
   const handlePolish = async () => {
@@ -166,18 +197,20 @@ function StoreFlow({ onBack, onSaved }) {
     setError(null); setStep('extracting')
     const result = await window.api.extractIdeas(rawText)
     if (!result.ok) { setError(result.error); setStep('input'); return }
-    setExtracted(result.ideas.map((idea, i) => ({ ...idea, _key: i, _include: true })))
+    setExtracted(result.ideas.map((idea, i) => ({ ...idea, _key: i, _include: true, _mergeSelect: false })))
     setStep('multi')
   }
 
   const handleSaveSingle = async () => {
-    await window.api.saveIdea({ title: polished.title, summary: polished.summary, raw_text: rawText, tags: polished.tags, source: 'store' })
+    const fileFields = await saveAttachment()
+    await window.api.saveIdea({ title: polished.title, summary: polished.summary, raw_text: rawText, tags: polished.tags, source: 'store', ...fileFields })
     onSaved()
   }
 
   const handleSaveMulti = async () => {
+    const fileFields = await saveAttachment()
     for (const idea of extracted.filter(i => i._include)) {
-      await window.api.saveIdea({ title: idea.title, summary: idea.summary, raw_text: idea.excerpt ?? rawText.slice(0, 500), tags: idea.tags ?? [], source: 'extract' })
+      await window.api.saveIdea({ title: idea.title, summary: idea.summary, raw_text: idea.excerpt ?? rawText.slice(0, 500), tags: idea.tags ?? [], source: 'extract', ...fileFields })
     }
     onSaved()
   }
@@ -231,42 +264,105 @@ function StoreFlow({ onBack, onSaved }) {
   }
 
   if (step === 'multi') {
+    const mergeCount = extracted.filter(i => i._mergeSelect).length
+    const mergeSelected = () => {
+      const toMerge = extracted.filter(i => i._mergeSelect)
+      setMergePanel({
+        title: toMerge[0].title,
+        summary: toMerge.map(i => i.summary).join('\n\n'),
+        tags: [...new Set(toMerge.flatMap(i => i.tags ?? []))],
+      })
+    }
+    const confirmMerge = () => {
+      const keys = new Set(extracted.filter(i => i._mergeSelect).map(i => i._key))
+      const merged = { ...mergePanel, _key: Date.now(), _include: true, _mergeSelect: false }
+      setExtracted(prev => [merged, ...prev.filter(i => !keys.has(i._key))])
+      setMergePanel(null)
+    }
+
     return (
-      <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full">
-        <button onClick={() => setStep('input')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-5">
-          <ArrowLeft size={14} /> Back
-        </button>
-        <h2 className="text-lg font-bold text-gray-900 mb-1">Found {extracted.length} ideas</h2>
-        <p className="text-sm text-gray-500 mb-4">Uncheck any you don't want to save.</p>
-        {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
-        <div className="space-y-3 mb-6">
-          {extracted.map((idea, i) => (
-            <div key={idea._key} className={`p-4 border rounded-xl transition-colors ${idea._include ? 'border-primary/30 bg-indigo-50/40' : 'border-gray-100 bg-gray-50 opacity-50'}`}>
-              <div className="flex items-start gap-3">
-                <input type="checkbox" checked={idea._include}
-                  onChange={e => setExtracted(prev => prev.map((it, j) => j === i ? { ...it, _include: e.target.checked } : it))}
-                  className="mt-1 accent-primary" />
-                <div className="flex-1">
-                  <input value={idea.title}
-                    onChange={e => setExtracted(prev => prev.map((it, j) => j === i ? { ...it, title: e.target.value } : it))}
-                    className="w-full font-medium text-sm text-gray-900 bg-transparent border-b border-transparent focus:border-gray-300 focus:outline-none mb-1" />
-                  <p className="text-xs text-gray-500 leading-relaxed">{idea.summary}</p>
-                  {idea.tags?.length > 0 && (
-                    <div className="flex gap-1 mt-1.5 flex-wrap">
-                      {idea.tags.map(t => <span key={t} className="px-1.5 py-0.5 rounded-full text-[10px] bg-white text-indigo-500 border border-indigo-100">{t}</span>)}
-                    </div>
-                  )}
-                </div>
+      <div className="flex-1 min-h-0 flex flex-col">
+        <div className="overflow-y-auto flex-1 min-h-0 p-6 max-w-2xl mx-auto w-full">
+          <button onClick={() => { setStep('input'); setMergePanel(null) }} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-5">
+            <ArrowLeft size={14} /> Back
+          </button>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Found {extracted.length} ideas</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Uncheck any you don't want to save. Check the <Merge size={11} className="inline mx-0.5" /> column on two or more to merge them.
+          </p>
+          {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+
+          {/* Merge panel */}
+          {mergePanel && (
+            <div className="mb-4 p-4 border-2 border-indigo-300 rounded-xl bg-indigo-50/60">
+              <p className="text-xs font-semibold text-indigo-600 mb-3 flex items-center gap-1.5">
+                <Merge size={13} /> Merged idea — edit before saving
+              </p>
+              <input value={mergePanel.title} onChange={e => setMergePanel(p => ({ ...p, title: e.target.value }))}
+                placeholder="Title"
+                className="w-full font-medium text-sm text-gray-900 px-3 py-1.5 border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 mb-2" />
+              <textarea value={mergePanel.summary} onChange={e => setMergePanel(p => ({ ...p, summary: e.target.value }))}
+                rows={4} placeholder="Summary"
+                className="w-full text-xs text-gray-700 px-3 py-1.5 border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none mb-2" />
+              <div className="flex gap-2">
+                <button onClick={confirmMerge}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">
+                  <Check size={12} /> Confirm merge
+                </button>
+                <button onClick={() => setMergePanel(null)}
+                  className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50">
+                  Cancel
+                </button>
               </div>
             </div>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={handleSaveMulti}
-            className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
-            <Check size={14} /> Save {extracted.filter(i => i._include).length} ideas
-          </button>
-          <button onClick={() => setStep('input')} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">Discard</button>
+          )}
+
+          <div className="space-y-3 mb-6">
+            {extracted.map((idea, i) => (
+              <div key={idea._key} className={`p-4 border rounded-xl transition-colors ${idea._include ? 'border-primary/30 bg-indigo-50/40' : 'border-gray-100 bg-gray-50 opacity-50'}`}>
+                <div className="flex items-start gap-3">
+                  {/* Include checkbox */}
+                  <div className="flex flex-col items-center gap-2 pt-0.5 shrink-0">
+                    <input type="checkbox" checked={idea._include}
+                      onChange={e => setExtracted(prev => prev.map((it, j) => j === i ? { ...it, _include: e.target.checked } : it))}
+                      className="accent-primary" title="Include in save" />
+                    {/* Merge checkbox */}
+                    <input type="checkbox" checked={idea._mergeSelect}
+                      onChange={e => setExtracted(prev => prev.map((it, j) => j === i ? { ...it, _mergeSelect: e.target.checked } : it))}
+                      className="accent-indigo-400" title="Select to merge" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <input value={idea.title}
+                      onChange={e => setExtracted(prev => prev.map((it, j) => j === i ? { ...it, title: e.target.value } : it))}
+                      className="w-full font-medium text-sm text-gray-900 bg-transparent border-b border-transparent focus:border-gray-300 focus:outline-none mb-1" />
+                    <p className="text-xs text-gray-500 leading-relaxed">{idea.summary}</p>
+                    {idea.tags?.length > 0 && (
+                      <div className="flex gap-1 mt-1.5 flex-wrap">
+                        {idea.tags.map(t => <span key={t} className="px-1.5 py-0.5 rounded-full text-[10px] bg-white text-indigo-500 border border-indigo-100">{t}</span>)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pb-2">
+            {mergeCount >= 2 && !mergePanel && (
+              <button onClick={mergeSelected}
+                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                <Merge size={14} /> Merge {mergeCount} ideas
+              </button>
+            )}
+            <button onClick={handleSaveMulti}
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+              <Check size={14} /> Save {extracted.filter(i => i._include).length} ideas
+            </button>
+            <button onClick={() => { setStep('input'); setMergePanel(null) }}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">
+              Discard
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -279,17 +375,17 @@ function StoreFlow({ onBack, onSaved }) {
         <ArrowLeft size={14} /> Back to Ideas
       </button>
       <h2 className="text-lg font-bold text-gray-900 mb-1">Store an idea</h2>
-      <p className="text-sm text-gray-500 mb-4">Paste a rough note, or drop a conversation file / Google Keep export.</p>
+      <p className="text-sm text-gray-500 mb-4">Paste a rough note, or drop a file — the original will be saved alongside the idea.</p>
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
 
       <div
-        className={`relative rounded-xl border-2 border-dashed transition-colors mb-4 ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'}`}
+        className={`relative rounded-xl border-2 border-dashed transition-colors mb-3 ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'}`}
         onDragOver={e => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) loadFile(f) }}
       >
-        <textarea value={rawText} onChange={e => setRawText(e.target.value)}
-          placeholder="Paste text here, or drag & drop a .txt / .json file..."
+        <textarea value={rawText} onChange={e => { setRawText(e.target.value); if (attachedFile) setAttachedFile(null) }}
+          placeholder="Paste text here, or drag & drop a .txt / .md / .pdf / .json file…"
           rows={10}
           className="w-full px-4 py-3 bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none resize-none" />
         {isDragging && (
@@ -299,11 +395,19 @@ function StoreFlow({ onBack, onSaved }) {
         )}
       </div>
 
-      <input ref={fileRef} type="file" accept=".txt,.json,.md" className="hidden"
-        onChange={e => { if (e.target.files[0]) loadFile(e.target.files[0]) }} />
-      <button onClick={() => fileRef.current.click()} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 mb-5 block">
-        Browse for file
-      </button>
+      <div className="flex items-center gap-3 mb-5">
+        <input ref={fileRef} type="file" accept=".txt,.json,.md,.pdf,.docx,.csv" className="hidden"
+          onChange={e => { if (e.target.files[0]) loadFile(e.target.files[0]) }} />
+        <button onClick={() => fileRef.current.click()} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2">
+          Browse for file
+        </button>
+        {attachedFile && (
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-500 text-xs font-medium">
+            <Paperclip size={10} /> {attachedFile.filename}
+            <button onClick={() => setAttachedFile(null)} className="ml-1 hover:text-indigo-700"><X size={10} /></button>
+          </span>
+        )}
+      </div>
 
       <div className="flex gap-2">
         <button onClick={handlePolish} disabled={!rawText.trim()}
@@ -393,7 +497,7 @@ export default function IdeasPage() {
   // Store flow takes over the full content area
   if (storing) {
     return (
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
         <StoreFlow onBack={() => setStoring(false)} onSaved={handleStored} />
       </div>
     )

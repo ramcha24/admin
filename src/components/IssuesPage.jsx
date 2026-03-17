@@ -1,5 +1,24 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Bug, Sparkles, Play, Check, Trash2, ChevronDown, ChevronRight, RefreshCw, X, Pencil } from 'lucide-react'
+import { Bug, Sparkles, Play, Check, Trash2, ChevronDown, ChevronRight, RefreshCw, X, Pencil, Link } from 'lucide-react'
+
+// Auto-link GitHub URLs in text
+function LinkedText({ text }) {
+  if (!text) return null
+  const parts = text.split(/(https?:\/\/[^\s]+)/g)
+  return (
+    <span>
+      {parts.map((part, i) =>
+        part.match(/^https?:\/\//) ? (
+          <a key={i} href={part} target="_blank" rel="noreferrer"
+            className="text-indigo-500 hover:text-indigo-700 underline break-all"
+            onClick={e => { e.stopPropagation(); window.open(part, '_blank') }}>
+            {part.includes('github.com') ? part.replace('https://github.com/', 'github.com/') : part}
+          </a>
+        ) : part
+      )}
+    </span>
+  )
+}
 
 // ─── Multi-select tool dropdown ───────────────────────────────────────────────
 
@@ -73,11 +92,13 @@ const TYPE_META = {
 }
 
 function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
-  const [expanded, setExpanded] = useState(false)
-  const [editing,  setEditing]  = useState(false)
-  const [title, setTitle]       = useState(issue.title)
-  const [desc,  setDesc]        = useState(issue.description ?? '')
-  const [saving, setSaving]     = useState(false)
+  const [expanded,    setExpanded]    = useState(false)
+  const [editing,     setEditing]     = useState(false)
+  const [closing,     setClosing]     = useState(false) // inline resolution note prompt
+  const [title,       setTitle]       = useState(issue.title)
+  const [desc,        setDesc]        = useState(issue.description ?? '')
+  const [resNote,     setResNote]     = useState(issue.resolution_note ?? '')
+  const [saving,      setSaving]      = useState(false)
 
   const meta = TYPE_META[issue.type] ?? TYPE_META.bug
   const Icon = meta.icon
@@ -86,15 +107,28 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
 
   const handleSaveEdit = async () => {
     setSaving(true)
-    await onUpdate({ id: issue.id, title: title.trim(), description: desc.trim() })
+    await onUpdate({ id: issue.id, title: title.trim(), description: desc.trim(), resolution_note: resNote.trim() })
     setSaving(false)
     setEditing(false)
   }
 
-  const handleToggleDone = () => onUpdate({ id: issue.id, status: isDone ? 'open' : 'done' })
+  const handleToggleDone = () => {
+    if (isDone) {
+      onUpdate({ id: issue.id, status: 'open' })
+    } else {
+      setClosing(true) // show resolution note prompt before closing
+    }
+  }
+
+  const handleConfirmClose = async () => {
+    setSaving(true)
+    await onUpdate({ id: issue.id, status: 'done', resolution_note: resNote.trim() })
+    setSaving(false)
+    setClosing(false)
+  }
 
   return (
-    <div className={`rounded-xl border transition-opacity ${isDone ? 'opacity-50' : ''} ${meta.border} bg-white overflow-hidden`}>
+    <div className={`rounded-xl border transition-opacity ${isDone ? 'opacity-60' : ''} ${meta.border} bg-white overflow-hidden`}>
       <div className="flex items-start gap-3 px-4 py-3">
         {/* Done toggle */}
         <button
@@ -127,15 +161,41 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
                 placeholder="Notes (optional)"
                 className="w-full px-2 py-1 border border-gray-200 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
+              <textarea
+                value={resNote}
+                onChange={e => setResNote(e.target.value)}
+                rows={2}
+                placeholder="Resolution note — paste PR/commit links, brief explanation…"
+                className="w-full px-2 py-1 border border-emerald-200 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-200/50 bg-emerald-50/40 placeholder:text-emerald-300"
+              />
               <div className="flex gap-2">
                 <button onClick={handleSaveEdit} disabled={saving || !title.trim()}
                   className="px-2 py-1 bg-primary text-white rounded text-xs disabled:opacity-50">
                   {saving ? <RefreshCw size={11} className="animate-spin" /> : 'Save'}
                 </button>
-                <button onClick={() => { setEditing(false); setTitle(issue.title); setDesc(issue.description ?? '') }}
+                <button onClick={() => { setEditing(false); setTitle(issue.title); setDesc(issue.description ?? ''); setResNote(issue.resolution_note ?? '') }}
                   className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700">
                   Cancel
                 </button>
+              </div>
+            </div>
+          ) : closing ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-gray-700">Close <span className="text-gray-500 font-normal">"{issue.title}"</span></p>
+              <textarea
+                autoFocus
+                value={resNote}
+                onChange={e => setResNote(e.target.value)}
+                rows={2}
+                placeholder="Resolution note — paste PR/commit URLs, brief explanation… (optional)"
+                className="w-full px-2 py-1 border border-emerald-200 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-200/50 bg-emerald-50/40 placeholder:text-emerald-300"
+              />
+              <div className="flex gap-2">
+                <button onClick={handleConfirmClose} disabled={saving}
+                  className="flex items-center gap-1 px-2 py-1 bg-emerald-500 text-white rounded text-xs disabled:opacity-50 hover:bg-emerald-600">
+                  {saving ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />} Close issue
+                </button>
+                <button onClick={() => setClosing(false)} className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
               </div>
             </div>
           ) : (
@@ -145,11 +205,11 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
                   {issue.title}
                 </span>
                 {tool && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
-                    {tool.icon} {tool.name}
-                  </span>
+                  <span className="text-[11px] leading-none" title={tool.name}>{tool.icon}</span>
                 )}
               </div>
+
+              {/* Description toggle */}
               {issue.description && !expanded && (
                 <button onClick={() => setExpanded(true)} className="flex items-center gap-0.5 text-xs text-gray-400 hover:text-gray-600 mt-0.5">
                   <ChevronRight size={11} /> notes
@@ -163,6 +223,20 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
                   <p className="text-xs text-gray-500 whitespace-pre-wrap">{issue.description}</p>
                 </div>
               )}
+
+              {/* Resolution note (done issues only) */}
+              {isDone && issue.resolution_note && (
+                <div className="mt-1.5 px-2 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <Link size={10} className="text-emerald-400 shrink-0" />
+                    <span className="text-[10px] font-medium text-emerald-500 uppercase tracking-wide">Resolution</span>
+                  </div>
+                  <p className="text-xs text-emerald-800 whitespace-pre-wrap leading-relaxed">
+                    <LinkedText text={issue.resolution_note} />
+                  </p>
+                </div>
+              )}
+
               <p className="text-[10px] text-gray-300 mt-1">
                 {new Date(issue.created_at).toLocaleDateString()}
                 {isDone && issue.resolved_at && ` · resolved ${new Date(issue.resolved_at).toLocaleDateString()}`}
@@ -172,7 +246,7 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
         </div>
 
         {/* Actions */}
-        {!editing && (
+        {!editing && !closing && (
           <div className="flex items-center gap-1 shrink-0">
             {!isDone && (
               <button
@@ -188,7 +262,7 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
                 {starting ? 'Opening…' : 'Fix it'}
               </button>
             )}
-            <button onClick={() => setEditing(true)} className="p-1 text-gray-300 hover:text-gray-500 transition-colors">
+            <button onClick={() => { setEditing(true); setResNote(issue.resolution_note ?? '') }} className="p-1 text-gray-300 hover:text-gray-500 transition-colors">
               <Pencil size={12} />
             </button>
             <button onClick={() => onDelete(issue.id)} className="p-1 text-gray-300 hover:text-red-400 transition-colors">
@@ -282,7 +356,6 @@ export default function IssuesPage({ onCountChange }) {
   const [tools,    setTools]    = useState([])
   const [loading,  setLoading]  = useState(true)
   const [toolFilter, setToolFilter] = useState([]) // empty = all tools
-  const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('open')
   const [adding,   setAdding]   = useState(false)
 
@@ -336,7 +409,6 @@ export default function IssuesPage({ onCountChange }) {
 
   const filtered = issues.filter(i => {
     if (toolFilter.length > 0 && !toolFilter.includes(i.tool_id)) return false
-    if (typeFilter !== 'all' && i.type !== typeFilter) return false
     if (statusFilter !== 'all' && i.status !== statusFilter) return false
     return true
   })
@@ -375,20 +447,6 @@ export default function IssuesPage({ onCountChange }) {
                 statusFilter === s.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}>
               {s.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="w-px bg-gray-200 mx-1" />
-
-        {/* Type */}
-        <div className="flex gap-1">
-          {[{ id: 'all', label: 'All types' }, { id: 'bug', label: '🐛 Bugs' }, { id: 'feature', label: '✨ Features' }].map(t => (
-            <button key={t.id} onClick={() => setTypeFilter(t.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                typeFilter === t.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}>
-              {t.label}
             </button>
           ))}
         </div>

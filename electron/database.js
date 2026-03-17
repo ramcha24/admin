@@ -199,6 +199,13 @@ function createSchema() {
   try { db.exec("ALTER TABLE tool_registry ADD COLUMN next_steps TEXT NOT NULL DEFAULT '[]'") } catch (_) {}
   try { db.exec("ALTER TABLE tool_registry ADD COLUMN stable_tag TEXT DEFAULT NULL") } catch (_) {}
 
+  // Issues resolution note (additive migration)
+  try { db.exec("ALTER TABLE issues ADD COLUMN resolution_note TEXT NOT NULL DEFAULT ''") } catch (_) {}
+
+  // Ideas file attachment (additive migrations)
+  try { db.exec("ALTER TABLE ideas ADD COLUMN source_filename TEXT NOT NULL DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE ideas ADD COLUMN attached_file_path TEXT NOT NULL DEFAULT ''") } catch (_) {}
+
   // Village member auth columns (additive migrations)
   try { db.exec("ALTER TABLE village_members ADD COLUMN feed_token TEXT") } catch (_) {}
   try { db.exec("ALTER TABLE village_members ADD COLUMN last_seen_at TEXT") } catch (_) {}
