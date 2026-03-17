@@ -1,3 +1,21 @@
+/**
+ * @file main.js
+ * @description Admin Electron main process — IPC handlers, tool management, and service orchestration.
+ *
+ * This is the central hub of the Admin app. It:
+ * - Initialises the SQLite database and all background services on startup.
+ * - Exposes every `window.api.*` method as an `ipcMain.handle()` handler.
+ * - Manages tool discovery, launch, stop, scaffolding, and publish workflows.
+ * - Hosts the capability gateway HTTP server (port 7702).
+ * - Drives the inter-tool event bus and workflow engine.
+ * - Coordinates the Village sync pipeline and Supabase cloud sync.
+ *
+ * All business logic for the renderer lives here; React components never
+ * touch the database or external APIs directly.
+ *
+ * @module main
+ */
+
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
@@ -13,8 +31,15 @@ const { scheduleDailyDigest, cancelDigestSchedule, runDailyDigest } = require('.
 
 const isDev = process.argv.includes('--dev')
 
-// In dev mode __dirname is the real source path; in a packaged .app it's
-// inside the bundle. Read the baked-in path written by release.sh instead.
+/**
+ * Resolve the parent directory that contains all sibling tool directories.
+ *
+ * - Dev mode (`--dev` flag): two levels above `__dirname` (repo root).
+ * - Packaged build: reads `admin-parent.json` baked in by `release.sh`.
+ * - Fallback: `~/Admin` when the JSON is missing or unreadable.
+ *
+ * @returns {string} Absolute path to the Admin parent directory.
+ */
 function resolveAdminParent() {
   if (isDev) return path.resolve(__dirname, '../../')
   try {
@@ -42,6 +67,15 @@ let win
 
 // ─── Window ──────────────────────────────────────────────────────────────────
 
+/**
+ * Create the main Admin BrowserWindow.
+ *
+ * Loads the Vite dev server in dev mode (`--dev` flag) or the built
+ * `dist/index.html` in production. Context isolation is enabled and Node
+ * integration is disabled; the preload script bridges the two worlds.
+ *
+ * @returns {void}
+ */
 function createWindow() {
   win = new BrowserWindow({
     width: 1100,
@@ -82,6 +116,20 @@ app.on('window-all-closed', () => {
 
 // ─── Post-commit hook installer ───────────────────────────────────────────────
 
+/**
+ * Install git hooks into a tool's `.git/hooks/` directory.
+ *
+ * Writes two hooks (idempotent — overwrites on every call):
+ * - `post-commit`: runs `~/.local/bin/update-dev-status` in the background to
+ *   regenerate `dev-status.json` after each commit.
+ * - `pre-push`: blocks direct pushes to `main` or `master` to enforce the
+ *   feature-branch workflow.
+ *
+ * Silently returns if the directory is not a git repository yet.
+ *
+ * @param {string} toolDir - Absolute path to the tool's root directory.
+ * @returns {void}
+ */
 function installPostCommitHook(toolDir) {
   try {
     const hooksDir = path.join(toolDir, '.git', 'hooks')
@@ -119,6 +167,16 @@ function installPostCommitHook(toolDir) {
 
 // ─── Tool dev helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Check whether a Claude Code project session exists for a tool directory.
+ *
+ * Claude encodes the project path by replacing every `/` with `-` and stores
+ * session JSONL files under `~/.claude/projects/<encoded-path>/`. Returns
+ * `true` when at least one `.jsonl` file is found.
+ *
+ * @param {string} toolDir - Absolute path to the tool's root directory.
+ * @returns {boolean} `true` if a prior Claude session exists.
+ */
 function hasClaudeSession(toolDir) {
   // Claude encodes the project path by replacing every / with -
   const encoded = toolDir.replace(/\//g, '-')
@@ -127,6 +185,16 @@ function hasClaudeSession(toolDir) {
   return fs.readdirSync(sessionsDir).some(f => f.endsWith('.jsonl'))
 }
 
+/**
+ * Detect the most recent git tag in a tool's repository.
+ *
+ * Runs `git describe --tags --abbrev=0` with a 3-second timeout. Returns
+ * `null` when the directory is not a git repo, has no tags, or the command
+ * fails for any reason.
+ *
+ * @param {string} toolDir - Absolute path to the tool's root directory.
+ * @returns {string|null} Latest tag string (e.g. `'v1.0.3'`), or `null`.
+ */
 function detectLatestTag(toolDir) {
   try {
     const tag = execSync(
@@ -791,6 +859,20 @@ ipcMain.handle('events:poll', (_, toolId) => {
 
 // ─── LLM (routes to Claude or Ollama based on settings) ──────────────────────
 
+/**
+ * Send a chat completion request to the configured LLM provider.
+ *
+ * Routes to Ollama or the Anthropic Claude API depending on the `llm_provider`
+ * setting. All settings are read fresh from the database on each call so
+ * provider switches take effect without restarting the app.
+ *
+ * @param {Array<{role:'user'|'assistant', content:string}>} messages - Chat history.
+ * @param {object} [opts={}] - Options.
+ * @param {string} [opts.systemPrompt] - Optional system prompt.
+ * @param {number} [opts.maxTokens=1024] - Maximum tokens in the response.
+ * @returns {Promise<string>} The model's response text.
+ * @throws {Error} When the provider is misconfigured or the API call fails.
+ */
 async function llmComplete(messages, { systemPrompt, maxTokens = 1024 } = {}) {
   const db = getDb()
   const provider  = db.prepare("SELECT value FROM settings WHERE key='llm_provider'").get()?.value ?? 'claude'
@@ -962,7 +1044,15 @@ ipcMain.handle('ideas:delete', (_, id) => {
   return { ok: true }
 })
 
-// Strip markdown code fences that some models add despite being told not to
+/**
+ * Remove Markdown code fences that some LLMs prepend/append to JSON responses.
+ *
+ * Strips leading ` ```json ` or ` ``` ` and trailing ` ``` ` from the text,
+ * then trims whitespace. Safe to call on already-clean strings.
+ *
+ * @param {string} text - Raw LLM output that may be wrapped in a code fence.
+ * @returns {string} Plain JSON string without fences.
+ */
 function stripJsonFences(text) {
   return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
 }
@@ -1289,7 +1379,20 @@ ipcMain.handle('workflows:delete', (_, id) => {
   return { ok: true }
 })
 
-// Run matching workflows when an event fires
+/**
+ * Execute all enabled workflow rules that match an event.
+ *
+ * Called asynchronously from `events:publish` — errors are logged but never
+ * surfaced to the renderer. Supported action types:
+ * - `send_email_digest` — triggers `runDailyDigest`.
+ * - `sync_village` — syncs Grove + Think activity and pushes to Supabase.
+ * - `log_to_console` — logs the event payload.
+ *
+ * @param {string} eventType - Event type slug (e.g. `'session_logged'`).
+ * @param {string} sourceTool - Tool slug that emitted the event.
+ * @param {object} payload - Event payload forwarded to actions that need it.
+ * @returns {Promise<void>}
+ */
 async function runWorkflows(eventType, sourceTool, payload) {
   const db = getDb()
   const wfs = db.prepare(
@@ -1324,6 +1427,18 @@ async function runWorkflows(eventType, sourceTool, payload) {
 const GATEWAY_PORT = 7702
 let gatewayServer = null
 
+/**
+ * Validate a capability payload against a service's declared input schema.
+ *
+ * Checks each field in `inputSchema` for:
+ * - Presence, when `spec.required` is truthy and the field is missing/empty.
+ * - Type match (`typeof`), when the field is present and `spec.type` is declared.
+ *
+ * @param {Record<string, {type?:string, required?:boolean, description?:string}>} inputSchema
+ *   The service's `input` object from `tool.json` (already parsed from JSON).
+ * @param {object} payload - The caller-supplied request body.
+ * @returns {string[]} Array of human-readable error messages (empty when valid).
+ */
 function validatePayload(inputSchema, payload) {
   const errors = []
   for (const [field, spec] of Object.entries(inputSchema)) {
@@ -1339,6 +1454,19 @@ function validatePayload(inputSchema, payload) {
   return errors
 }
 
+/**
+ * Forward a capability call to a tool's local service server.
+ *
+ * POSTs the JSON payload to `http://127.0.0.1:<servicePort>/capabilities/<serviceId>`.
+ * Resolves with `{ status, body }` on any HTTP response (including error codes)
+ * and rejects only on network-level failures (connection refused, timeout, etc.).
+ *
+ * @param {number} servicePort - The tool's declared `service_port`.
+ * @param {string} serviceId - Fully-qualified service ID (e.g. `'grove:sessions:log'`).
+ * @param {object} payload - Validated request payload to forward.
+ * @returns {Promise<{status:number, body:object}>}
+ * @throws {Error} On network-level errors (ECONNREFUSED, etc.).
+ */
 function proxyToTool(servicePort, serviceId, payload) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload)
@@ -1363,6 +1491,21 @@ function proxyToTool(servicePort, serviceId, payload) {
   })
 }
 
+/**
+ * Start the Admin capability gateway HTTP server on port 7702.
+ *
+ * Handles two routes:
+ * - `POST /session-done` — called by the shell script after a `claude` session
+ *   ends; auto-closes the targeted issues and records any PR URL.
+ * - `POST /capabilities/call/{serviceId}` — validates the payload against the
+ *   declared input schema, looks up the target tool's `service_port`, and
+ *   proxies the request via `proxyToTool()`.
+ *
+ * Responds 503 when the target tool is not running. Logs (but does not crash)
+ * if the port is already in use.
+ *
+ * @returns {void}
+ */
 function startCapabilityGateway() {
   const db = getDb()
   gatewayServer = http.createServer((req, res) => {
@@ -1464,6 +1607,13 @@ function startCapabilityGateway() {
   })
 }
 
+/**
+ * Shut down the capability gateway server.
+ *
+ * Called from `app.on('before-quit')`. No-ops if the server was never started.
+ *
+ * @returns {void}
+ */
 function stopCapabilityGateway() {
   gatewayServer?.close()
 }
@@ -1632,6 +1782,15 @@ const FS_IGNORE = new Set([
   '.venv', '.DS_Store', '.pytest_cache', '*.node',
 ])
 
+/**
+ * Determine whether a filesystem entry should be hidden in the code browser.
+ *
+ * Entries in `FS_IGNORE` (node_modules, .git, dist, etc.) and any name
+ * beginning with a dot are excluded.
+ *
+ * @param {string} name - Filename or directory name (basename only).
+ * @returns {boolean} `true` if the entry should be hidden.
+ */
 function shouldIgnore(name) {
   return FS_IGNORE.has(name) || name.startsWith('.')
 }

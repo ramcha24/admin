@@ -15,6 +15,14 @@ const os    = require('os')
 const VILLAGE_PORT  = 7700
 const WEB_APP_PATH  = path.join(__dirname, '../village-web/index.html')
 
+/**
+ * Resolve the parent directory that contains all sibling tool directories.
+ *
+ * In packaged builds the baked-in `admin-parent.json` is read; in all other
+ * cases the path is derived relative to `__dirname`.
+ *
+ * @returns {string} Absolute path to the Admin parent directory.
+ */
 function resolveAdminParent() {
   try {
     const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'admin-parent.json'), 'utf8'))
@@ -29,6 +37,16 @@ let server = null
 
 // ─── Tool DB helper ───────────────────────────────────────────────────────────
 
+/**
+ * Open a sibling tool's SQLite database in read-only mode.
+ *
+ * Returns `null` if the database file does not yet exist (tool never launched)
+ * or if opening it fails. Callers are responsible for closing the returned
+ * instance when done.
+ *
+ * @param {string} toolId - Tool slug (e.g. `'grove'`, `'think'`).
+ * @returns {import('better-sqlite3').Database|null} Read-only DB instance, or null.
+ */
 function openToolDb(toolId) {
   const Database = require('better-sqlite3')
   const dbPath = path.join(os.homedir(), 'Library', 'Application Support', toolId, `${toolId}.db`)
@@ -36,6 +54,15 @@ function openToolDb(toolId) {
   try { return new Database(dbPath, { readonly: true }) } catch { return null }
 }
 
+/**
+ * Load a tool's village activity-type templates from its `tool.json`.
+ *
+ * Returns a map of `activity_type.id → activity_type_object` so callers can
+ * look up level-based message templates (e.g. `follower`, `reader`) by type ID.
+ *
+ * @param {string} toolId - Tool slug (e.g. `'grove'`).
+ * @returns {Record<string, object>} Map of activity type ID to type definition, or `{}` on error.
+ */
 function loadToolVillageConfig(toolId) {
   const toolJsonPath = path.join(ADMIN_PARENT, toolId, 'tool.json')
   if (!fs.existsSync(toolJsonPath)) return {}
@@ -49,12 +76,32 @@ function loadToolVillageConfig(toolId) {
 
 // ─── Template rendering ───────────────────────────────────────────────────────
 
+/**
+ * Render a Mustache-style `{{key}}` template against a payload object.
+ *
+ * Unknown keys are replaced with an empty string. Only simple `{{word}}`
+ * tokens are supported — no loops, partials, or conditionals.
+ *
+ * @param {string} template - Template string containing `{{key}}` placeholders.
+ * @param {Record<string, *>} payload - Values to substitute.
+ * @returns {string} Rendered string.
+ */
 function render(template, payload) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, k) => payload[k] ?? '')
 }
 
 // ─── Streak computation (mirrors grove logic) ─────────────────────────────────
 
+/**
+ * Compute the current consecutive-day learning streak from a Grove database.
+ *
+ * A streak is broken when there is no session recorded on either today or
+ * yesterday (relative to the machine's local time at call time). Uses only the
+ * date portion of `started_at`, so the exact session time does not matter.
+ *
+ * @param {import('better-sqlite3').Database} groveDb - Read-only Grove DB.
+ * @returns {number} Number of consecutive days in the current streak (0 if none).
+ */
 function computeStreak(groveDb) {
   const days = groveDb.prepare(
     "SELECT DISTINCT date(started_at) as day FROM sessions ORDER BY day DESC"
@@ -79,6 +126,16 @@ function computeStreak(groveDb) {
 
 // ─── Grove sync pipeline ──────────────────────────────────────────────────────
 
+/**
+ * Pull new Grove sessions into `village_activity` and upsert today's streak.
+ *
+ * Reads from grove.db in read-only mode. Only sessions created after the
+ * `village_grove_last_sync` watermark are imported (max 200 per call).
+ * Writes a `streak_update` activity when the current streak is > 0.
+ * Updates the watermark to `datetime('now')` on success.
+ *
+ * @returns {void}
+ */
 function syncGroveActivity() {
   const { getDb } = require('./database')
   const adminDb = getDb()
@@ -158,6 +215,16 @@ function syncGroveActivity() {
 
 // ─── Think sync pipeline ──────────────────────────────────────────────────────
 
+/**
+ * Pull new Think concluded nodes and new sessions into `village_activity`.
+ *
+ * Reads from think.db in read-only mode. Both `node_concluded` (type) and
+ * `research_started` (type) activity entries are produced. Only records
+ * created after the `village_think_last_sync` watermark are imported
+ * (max 100 per type per call). Updates the watermark on success.
+ *
+ * @returns {void}
+ */
 function syncThinkActivity() {
   const { getDb } = require('./database')
   const adminDb = getDb()
@@ -237,6 +304,16 @@ function syncThinkActivity() {
 
 // ─── Tantu sync pipeline ──────────────────────────────────────────────────────
 
+/**
+ * Parse a Tantu ledger Markdown file into structured entry objects.
+ *
+ * Each entry block starts with `## YYYY-MM-DD HH:MM — Profile: title` followed
+ * by a comma-separated `key=value` line. Unknown or missing keys become
+ * `undefined` on the returned object.
+ *
+ * @param {string} text - Raw Markdown content of a ledger file.
+ * @returns {Array<{created_at:string,thread_title:string,[key:string]:string}>} Parsed entries.
+ */
 function parseTantuLedger(text) {
   // Each entry: "## YYYY-MM-DD HH:MM — Profile: title\nkv=val, kv=val\n"
   const entries = []
@@ -268,6 +345,17 @@ function parseTantuLedger(text) {
   return entries
 }
 
+/**
+ * Parse Tantu ledger Markdown files and import new knot entries into `village_activity`.
+ *
+ * Scans every `*.md` file in the Tantu ledgers directory
+ * (`$TANTU_VAULT_ROOT/Tantu/ledgers/` or the default Obsidian Vault path).
+ * Only entries with a timestamp after `village_tantu_last_sync` are inserted.
+ * Updates the watermark on success. Does nothing if the ledgers directory is
+ * absent (Tantu not set up).
+ *
+ * @returns {void}
+ */
 function syncTantuActivity() {
   const { getDb } = require('./database')
   const adminDb = getDb()
@@ -324,6 +412,20 @@ function syncTantuActivity() {
 
 // ─── Access resolution ────────────────────────────────────────────────────────
 
+/**
+ * Determine a member's effective access level for a given tool.
+ *
+ * Precedence (highest to lowest):
+ * 1. Explicit `village_access` override for the member + tool.
+ * 2. Tag-specific default for the member's tag + tool.
+ * 3. Wildcard tag default (`tool_id = '*'`).
+ * 4. `null` — no access.
+ *
+ * @param {import('better-sqlite3').Database} db - Admin database.
+ * @param {string} memberId - Village member ID.
+ * @param {string} toolId - Tool slug (e.g. `'grove'`).
+ * @returns {string|null} Access level (`'follower'`|`'reader'`|`'commenter'`|`'collaborator'`) or `null`.
+ */
 function resolveAccess(db, memberId, toolId) {
   const override = db.prepare(
     'SELECT level FROM village_access WHERE member_id=? AND tool_id=?'
@@ -346,6 +448,21 @@ function resolveAccess(db, memberId, toolId) {
 
 // ─── Feed API ─────────────────────────────────────────────────────────────────
 
+/**
+ * Build a personalised activity feed for a single village member.
+ *
+ * Resolves the member's access level for each tool, filters the global
+ * `village_activity` table to only items the member can see, and renders
+ * each activity using the appropriate level template from the tool's
+ * `tool.json`. Detail fields are gated by access level:
+ * - `follower`: rendered sentence only.
+ * - `reader+`: course/topic metadata.
+ * - `commenter/collaborator+`: notes, takeaways, goals.
+ *
+ * @param {string} memberId - Village member ID.
+ * @returns {{member:object, identity:object, items:object[]}|null}
+ *   Feed object, or `null` if the member does not exist.
+ */
 function getMemberFeed(memberId) {
   const { getDb } = require('./database')
   const adminDb = getDb()
@@ -436,6 +553,15 @@ function getMemberFeed(memberId) {
 
 // ─── Test villager seed ───────────────────────────────────────────────────────
 
+/**
+ * Seed a test village member if one does not already exist.
+ *
+ * Creates the `test-villager` member with reader access to Grove and Tantu,
+ * and logs the preview URL to the console. Safe to call on every startup
+ * (idempotent — no-ops if the member already exists).
+ *
+ * @returns {void}
+ */
 function seedTestVillager() {
   const { getDb } = require('./database')
   const db = getDb()
@@ -469,6 +595,14 @@ function seedTestVillager() {
 
 // ─── HTTP server ──────────────────────────────────────────────────────────────
 
+/**
+ * Write a JSON response with CORS headers.
+ *
+ * @param {import('http').ServerResponse} res - Node HTTP response object.
+ * @param {*} data - Value to serialise as JSON.
+ * @param {number} [status=200] - HTTP status code.
+ * @returns {void}
+ */
 function json(res, data, status = 200) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
@@ -477,6 +611,21 @@ function json(res, data, status = 200) {
   res.end(JSON.stringify(data))
 }
 
+/**
+ * Start the Village local HTTP server on `VILLAGE_PORT` (7700).
+ *
+ * On startup: syncs Grove, Think, and Tantu activity into admin.db, seeds the
+ * test villager, and begins serving the following routes:
+ * - `GET  /`            — Village web app HTML.
+ * - `GET  /api/feed`    — Personalised member feed (token or member query param).
+ * - `GET  /api/members` — All village members.
+ * - `POST /api/interact`— Submit a member interaction (comment/reaction).
+ *
+ * A background interval re-syncs all tool activity every 5 minutes.
+ * Logs a warning if the port is already in use (instead of crashing).
+ *
+ * @returns {void}
+ */
 function startVillageServer() {
   syncGroveActivity()
   syncThinkActivity()
@@ -582,6 +731,13 @@ function startVillageServer() {
   setInterval(() => { syncGroveActivity(); syncThinkActivity(); syncTantuActivity() }, 5 * 60 * 1000)
 }
 
+/**
+ * Gracefully shut down the Village HTTP server.
+ *
+ * No-ops if the server was never started or has already been closed.
+ *
+ * @returns {void}
+ */
 function stopVillageServer() {
   if (server) { server.close(); server = null }
 }

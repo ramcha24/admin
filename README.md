@@ -126,16 +126,18 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have introduced multi-select functionality and auto-close behavior for issues, streamlining the issue tracking workflow. The `release.sh` script has been added for automated builds and deployments, and a feature branch workflow with pre-push hooks and tool use guards has been enforced for improved development practices. The village feed now renders all activity types with tool badges, enhancing the local social layer.
+Admin v1.0.8 now supports multi-select issues and auto-closes them after a Build it session.  It includes a new release script (`release.sh`) for automated builds and compliance checks, and enforces a feature-branch workflow via a pre-push hook. The Village component has improved feed rendering with tool badges, and integrates a daily email digest.
 
 **Next steps:**
-- Implement robust error handling for the `release.sh` script to ensure reliable builds.
-- Expand the Service Contracts page with more detailed documentation and examples for different service types.
-- Investigate and resolve any performance bottlenecks in the village feed rendering, particularly with large activity datasets.
-- Add more comprehensive testing for the new feature branch workflow to ensure proper enforcement and prevent regressions.
+- Implement robust error handling within the `release.sh` script to catch potential build failures and provide detailed logging.
+- Refine the 'Try it' panel in the Capabilities page to provide more user-friendly error messages and debugging assistance.
+- Expand the Ideas feature to support more file types and improve the accuracy of multi-idea extraction.
+- Document the detailed schema of the `capabilities` table for advanced users to better understand and customize service contracts.
 
 **Recent commits:**
-- `9837d0f` feat: multi-select issues and auto-close after Build it session
+- `b9ffe73` chore: release v1.0.8
+- `1116e3d` chore: update auto-generated files
+- `f6bd6d4` feat: multi-select issues and auto-close after Build it session (#11)
 - `b43eb9d` chore: release v1.0.7
 - `1a97a53` chore: update auto-generated files
 - `a66e9d8` feat: auto-create feature branch on Build it, rename Fix it → Build it (#10)
@@ -143,6 +145,4 @@ Recent commits have introduced multi-select functionality and auto-close behavio
 - `63ad8dd` chore: update auto-generated files
 - `edda2f4` chore: village-web feed renders all activity types with tool badges
 - `0b80023` chore: update auto-generated files
-- `e6670fb` feat: add release.sh to L2 compliance check and update TOOL_PROTOCOL.md (#9)
-- `33308eb` chore: release v1.0.5
 <!-- STATUS:END -->
