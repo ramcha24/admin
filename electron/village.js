@@ -561,6 +561,13 @@ function startVillageServer() {
   server.listen(VILLAGE_PORT, () => {
     console.log(`[Village] Running at http://localhost:${VILLAGE_PORT}`)
   })
+  server.on('error', e => {
+    if (e.code === 'EADDRINUSE') {
+      console.warn(`[Village] Port ${VILLAGE_PORT} already in use — skipping village server`)
+    } else {
+      console.error('[Village] Server error:', e.message)
+    }
+  })
 
   // Re-sync every 5 minutes
   setInterval(() => { syncGroveActivity(); syncThinkActivity(); syncTantuActivity() }, 5 * 60 * 1000)

@@ -126,24 +126,22 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have focused on improving the Admin tool management capabilities, including adding a tool protocol compliance levels system with badges, implementing a lightweight issues tracker, and integrating Tantu as a first-class tool. The addition of the Village Identity card and improvements to the activity feed further enhance the user experience.
+Recent commits have significantly expanded Admin's capabilities with the addition of the 'Try-it' panel for CapabilitiesPage and Idea conversion, alongside improvements to Idea ingestion and file handling. The Village section has been enhanced with a new Identity card, enriched seed data, and UI improvements, while also focusing on secure token management and email functionality.
 
 **Next steps:**
-- Implement the full 'issues tracker' functionality, allowing users to create, assign, and resolve bugs and feature requests.
-- Refine the LLM-generated plan scaffolding process, improving the quality and completeness of the generated code and documentation.
-- Expand the service contract system with additional capabilities and support for more complex interactions between tools.
-- Implement a user interface for managing workflow triggers and conditions, providing a more visual and intuitive way to define automated actions.
-- Add unit tests for critical components, particularly around the tool discovery and launch mechanisms, to improve reliability.
+- Implement the 'Try-it' panel functionality with proper UI and error handling.
+- Refine the Idea ingestion process, specifically addressing DOCX/DOC/RTF parsing and logging.
+- Develop a UI for managing workflow triggers and actions, allowing users to define and test automated responses.
 
 **Recent commits:**
-- `faaf757` Fix documentation accuracy — correct db schema table names and village pipeline
-- `ce61d5c` Sanitize public docs — replace personal tool names with generic examples
+- `3f648d6` Add Try-it panel to CapabilitiesPage and Ideas→Issue conversion
+- `958dec1` Ideas: truncate card summaries with inline more → link
+- `20a17d6` Ideas: hide tag display, keep tags for search only
+- `b4abcd9` Ideas: extract text from DOCX/DOC/RTF via textutil before LLM ingestion
+- `c6b5c8d` Ideas: proper file ingestion via dedicated ingestFile handler
+- `51cae13` Ideas: auto-extract ideas from file instead of dumping raw content
+- `e83add4` Issues: simplify tags; Ideas: file ingestion with attachment storage
+- `f2d5103` Sanitize public docs and fix documentation accuracy (#4)
 - `e295ba6` Fix Issues 'Fix it' button — write prompt+script to /tmp, exec via bash
 - `0d3b481` Secure feed tokens, last-seen tracking, and email invite buttons
-- `af77f77` Add Village Identity card and fix duplicate poll effect
-- `32b4675` Update dev-status.json
-- `265a507` Village activity feed, enriched seed data, and ToolDropdown UI improvements
-- `9a13eaa` Track update-dev-status script in repo (scripts/)
-- `17a192b` Add fs:listDir and fs:readFile IPC handlers for codebase browser
-- `4d66f64` Add ToolDetail control panel, ToolDropdown filters, and admin README
 <!-- STATUS:END -->

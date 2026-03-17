@@ -1,12 +1,10 @@
 {
-  "last_commit": "faaf757",
-  "updated_at": "2026-03-17T07:23:24.914Z",
-  "dev_summary": "Recent commits have focused on improving the Admin tool management capabilities, including adding a tool protocol compliance levels system with badges, implementing a lightweight issues tracker, and integrating Tantu as a first-class tool. The addition of the Village Identity card and improvements to the activity feed further enhance the user experience.",
+  "last_commit": "3f648d6",
+  "updated_at": "2026-03-17T15:41:52.107Z",
+  "dev_summary": "Recent commits have significantly expanded Admin's capabilities with the addition of the 'Try-it' panel for CapabilitiesPage and Idea conversion, alongside improvements to Idea ingestion and file handling. The Village section has been enhanced with a new Identity card, enriched seed data, and UI improvements, while also focusing on secure token management and email functionality.",
   "next_steps": [
-    "Implement the full 'issues tracker' functionality, allowing users to create, assign, and resolve bugs and feature requests.",
-    "Refine the LLM-generated plan scaffolding process, improving the quality and completeness of the generated code and documentation.",
-    "Expand the service contract system with additional capabilities and support for more complex interactions between tools.",
-    "Implement a user interface for managing workflow triggers and conditions, providing a more visual and intuitive way to define automated actions.",
-    "Add unit tests for critical components, particularly around the tool discovery and launch mechanisms, to improve reliability."
+    "Implement the 'Try-it' panel functionality with proper UI and error handling.",
+    "Refine the Idea ingestion process, specifically addressing DOCX/DOC/RTF parsing and logging.",
+    "Develop a UI for managing workflow triggers and actions, allowing users to define and test automated responses."
   ]
 }
