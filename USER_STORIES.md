@@ -248,6 +248,15 @@ Acceptance criteria:
 - No user action required
 - Grove sessions logged while Admin is open appear in feeds within 5 minutes
 
+### 7.3 Think activity appears in village feeds
+**As a user, when I conclude research nodes or start sessions in Think, this activity syncs to village feeds just like Grove sessions, so that my village sees my full research journey.**
+
+Acceptance criteria:
+- After syncing, concluded Think nodes appear as "node_concluded" activity items in the feed
+- New Think sessions appear as "research_started" items
+- Items are visible only to members with Think access at the appropriate level
+- Think activity respects the same follower/reader/commenter/collaborator template levels as Grove
+
 ---
 
 ## 8. Village — Supabase Cloud Sync *(requires Supabase configured)*
