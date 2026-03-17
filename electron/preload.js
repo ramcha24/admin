@@ -86,7 +86,7 @@ contextBridge.exposeInMainWorld('api', {
   saveIssue:        (data)               => invoke('issues:save', data),
   updateIssue:      (data)               => invoke('issues:update', data),
   deleteIssue:      (id)                 => invoke('issues:delete', id),
-  startIssueSession:(id)                 => invoke('issues:startSession', id),
+  startIssueSession:(ids)                => invoke('issues:startSession', ids),
 
   // User stories
   getStories:       ()                   => invoke('stories:getAll'),

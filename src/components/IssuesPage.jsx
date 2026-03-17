@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { Bug, Sparkles, Play, Check, Trash2, ChevronDown, ChevronRight, RefreshCw, X, Pencil, Link } from 'lucide-react'
+import { Bug, Sparkles, Play, Check, Trash2, ChevronDown, ChevronRight, RefreshCw, X, Pencil, Link, CheckSquare } from 'lucide-react'
 
 // Auto-link GitHub URLs in text
 function LinkedText({ text }) {
@@ -91,10 +91,10 @@ const TYPE_META = {
   feature: { label: 'Feature', icon: Sparkles, bg: 'bg-violet-50',  text: 'text-violet-600', border: 'border-violet-200' },
 }
 
-function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
+function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting, selectMode, isSelected, onToggleSelect }) {
   const [expanded,    setExpanded]    = useState(false)
   const [editing,     setEditing]     = useState(false)
-  const [closing,     setClosing]     = useState(false) // inline resolution note prompt
+  const [closing,     setClosing]     = useState(false)
   const [title,       setTitle]       = useState(issue.title)
   const [desc,        setDesc]        = useState(issue.description ?? '')
   const [resNote,     setResNote]     = useState(issue.resolution_note ?? '')
@@ -113,10 +113,11 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
   }
 
   const handleToggleDone = () => {
+    if (selectMode) return // don't toggle done in select mode
     if (isDone) {
       onUpdate({ id: issue.id, status: 'open' })
     } else {
-      setClosing(true) // show resolution note prompt before closing
+      setClosing(true)
     }
   }
 
@@ -128,18 +129,35 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
   }
 
   return (
-    <div className={`rounded-xl border transition-opacity ${isDone ? 'opacity-60' : ''} ${meta.border} bg-white overflow-hidden`}>
+    <div
+      className={`rounded-xl border transition-all ${isDone ? 'opacity-60' : ''} ${meta.border} bg-white overflow-hidden ${
+        selectMode && !isDone ? 'cursor-pointer' : ''
+      } ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-1' : ''}`}
+      onClick={selectMode && !isDone ? () => onToggleSelect(issue.id) : undefined}
+    >
       <div className="flex items-start gap-3 px-4 py-3">
-        {/* Done toggle */}
-        <button
-          onClick={handleToggleDone}
-          className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-            isDone ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300 hover:border-emerald-400'
-          }`}
-          title={isDone ? 'Reopen' : 'Mark done'}
-        >
-          {isDone && <Check size={10} className="text-white" />}
-        </button>
+
+        {/* Select checkbox (select mode) or done toggle (normal mode) */}
+        {selectMode && !isDone ? (
+          <button
+            onClick={e => { e.stopPropagation(); onToggleSelect(issue.id) }}
+            className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+              isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 hover:border-indigo-400'
+            }`}
+          >
+            {isSelected && <Check size={10} className="text-white" />}
+          </button>
+        ) : (
+          <button
+            onClick={handleToggleDone}
+            className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+              isDone ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300 hover:border-emerald-400'
+            }`}
+            title={isDone ? 'Reopen' : 'Mark done'}
+          >
+            {isDone && <Check size={10} className="text-white" />}
+          </button>
+        )}
 
         {/* Type icon */}
         <Icon size={13} className={`mt-0.5 shrink-0 ${meta.text}`} />
@@ -147,7 +165,7 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
         {/* Content */}
         <div className="flex-1 min-w-0">
           {editing ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2" onClick={e => e.stopPropagation()}>
               <input
                 autoFocus
                 value={title}
@@ -180,7 +198,7 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
               </div>
             </div>
           ) : closing ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2" onClick={e => e.stopPropagation()}>
               <p className="text-xs font-medium text-gray-700">Close <span className="text-gray-500 font-normal">"{issue.title}"</span></p>
               <textarea
                 autoFocus
@@ -209,22 +227,20 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
                 )}
               </div>
 
-              {/* Description toggle */}
               {issue.description && !expanded && (
-                <button onClick={() => setExpanded(true)} className="flex items-center gap-0.5 text-xs text-gray-400 hover:text-gray-600 mt-0.5">
+                <button onClick={e => { e.stopPropagation(); setExpanded(true) }} className="flex items-center gap-0.5 text-xs text-gray-400 hover:text-gray-600 mt-0.5">
                   <ChevronRight size={11} /> notes
                 </button>
               )}
               {issue.description && expanded && (
                 <div className="mt-1">
-                  <button onClick={() => setExpanded(false)} className="flex items-center gap-0.5 text-xs text-gray-400 hover:text-gray-600 mb-1">
+                  <button onClick={e => { e.stopPropagation(); setExpanded(false) }} className="flex items-center gap-0.5 text-xs text-gray-400 hover:text-gray-600 mb-1">
                     <ChevronDown size={11} /> notes
                   </button>
                   <p className="text-xs text-gray-500 whitespace-pre-wrap">{issue.description}</p>
                 </div>
               )}
 
-              {/* Resolution note (done issues only) */}
               {isDone && issue.resolution_note && (
                 <div className="mt-1.5 px-2 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
                   <div className="flex items-center gap-1 mb-0.5">
@@ -247,10 +263,11 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
 
         {/* Actions */}
         {!editing && !closing && (
-          <div className="flex items-center gap-1 shrink-0">
-            {!isDone && (
+          <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+            {/* Single-issue Build it — hidden in select mode */}
+            {!isDone && !selectMode && (
               <button
-                onClick={() => onStart(issue.id)}
+                onClick={() => onStart([issue.id])}
                 disabled={starting}
                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:opacity-50"
                 title="Create a feature branch and open Claude Code with this issue pre-loaded"
@@ -352,12 +369,16 @@ const STATUSES = [
 ]
 
 export default function IssuesPage({ onCountChange }) {
-  const [issues,   setIssues]   = useState([])
-  const [tools,    setTools]    = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [toolFilter, setToolFilter] = useState([]) // empty = all tools
+  const [issues,       setIssues]       = useState([])
+  const [tools,        setTools]        = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [toolFilter,   setToolFilter]   = useState([])
   const [statusFilter, setStatusFilter] = useState('open')
-  const [adding,   setAdding]   = useState(false)
+  const [adding,       setAdding]       = useState(false)
+  const [selectMode,   setSelectMode]   = useState(false)
+  const [selected,     setSelected]     = useState(new Set())
+  const [starting,     setStarting]     = useState(false)
+  const [startError,   setStartError]   = useState(null)
 
   const notifyCount = useCallback((list) => {
     onCountChange?.(list.filter(i => i.status === 'open').length)
@@ -395,16 +416,28 @@ export default function IssuesPage({ onCountChange }) {
     setIssues(prev => { const next = prev.filter(i => i.id !== id); notifyCount(next); return next })
   }
 
-  const [startingId, setStartingId] = useState(null)
-  const [startError,  setStartError]  = useState(null)
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
-  const handleStart = async (id) => {
-    setStartingId(id)
+  const exitSelectMode = () => { setSelectMode(false); setSelected(new Set()) }
+
+  // ids: array of issue IDs (always an array now)
+  const handleStart = async (ids) => {
+    setStarting(true)
     setStartError(null)
-    const result = await window.api.startIssueSession(id)
-    setStartingId(null)
-    if (!result?.ok) setStartError(result?.error ?? 'Failed to open Terminal')
-    else setTimeout(() => setStartError(null), 4000)
+    const result = await window.api.startIssueSession(ids)
+    setStarting(false)
+    if (!result?.ok) {
+      setStartError(result?.error ?? 'Failed to open Terminal')
+    } else {
+      if (selectMode) exitSelectMode()
+      setTimeout(() => setStartError(null), 4000)
+    }
   }
 
   const filtered = issues.filter(i => {
@@ -437,24 +470,61 @@ export default function IssuesPage({ onCountChange }) {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {/* Status */}
-        <div className="flex gap-1">
-          {STATUSES.map(s => (
-            <button key={s.id} onClick={() => setStatusFilter(s.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                statusFilter === s.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}>
-              {s.label}
+      {/* Filters / select mode bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {selectMode ? (
+          <>
+            <span className="text-xs text-gray-500 font-medium">
+              {selected.size === 0 ? 'Click issues to select' : `${selected.size} selected`}
+            </span>
+            <button
+              onClick={() => handleStart([...selected])}
+              disabled={selected.size === 0 || starting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              title="Create one feature branch and open Claude Code with all selected issues"
+            >
+              {starting
+                ? <RefreshCw size={11} className="animate-spin" />
+                : <Play size={11} />
+              }
+              {starting ? 'Opening…' : `Build it${selected.size > 0 ? ` (${selected.size})` : ''}`}
             </button>
-          ))}
-        </div>
+            <button
+              onClick={exitSelectMode}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Status */}
+            <div className="flex gap-1">
+              {STATUSES.map(s => (
+                <button key={s.id} onClick={() => setStatusFilter(s.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    statusFilter === s.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
 
-        <div className="w-px bg-gray-200 mx-1" />
+            <div className="w-px bg-gray-200 mx-1 self-stretch" />
 
-        {/* Tool dropdown */}
-        <ToolDropdown tools={tools} selected={toolFilter} onChange={setToolFilter} />
+            {/* Tool dropdown */}
+            <ToolDropdown tools={tools} selected={toolFilter} onChange={setToolFilter} />
+
+            {/* Select mode toggle */}
+            <button
+              onClick={() => { setSelectMode(true); setSelected(new Set()) }}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors"
+              title="Select multiple issues to build in one session"
+            >
+              <CheckSquare size={12} /> Select
+            </button>
+          </>
+        )}
       </div>
 
       {/* Quick-add form */}
@@ -494,7 +564,10 @@ export default function IssuesPage({ onCountChange }) {
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               onStart={handleStart}
-              starting={startingId === issue.id}
+              starting={starting}
+              selectMode={selectMode}
+              isSelected={selected.has(issue.id)}
+              onToggleSelect={toggleSelect}
             />
           ))}
         </div>
