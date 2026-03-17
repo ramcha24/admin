@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Play, Square, RotateCcw, Pencil, ChevronDown, ChevronRight, Tag, Bug, Sparkles, X, Check, ShieldCheck } from 'lucide-react'
+import { Play, Square, RotateCcw, Pencil, ChevronDown, ChevronRight, Tag, Bug, Sparkles, X, Check, ShieldCheck, Code2 } from 'lucide-react'
 
 const PROTOCOL_LEVELS = {
   0: { label: 'Unregistered', color: 'text-gray-300',  title: 'Missing tool.json, CLAUDE.md, or git repo' },
@@ -95,6 +95,7 @@ export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onRes
   const [stepsOpen, setStepsOpen] = useState(false)
   const [addingType, setAddingType] = useState(null) // 'bug' | 'feature' | null
   const isRunning = status === 'running'
+  const isDev     = status === 'dev'
   const isAdmin   = tool.id === 'admin'
   const hasStable = !!tool.launch_app
   const nextSteps = tool.next_steps ?? []
@@ -141,10 +142,17 @@ export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onRes
               </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <PhaseBadge phase={tool.dev_phase} />
-                <span className={`inline-flex items-center gap-1 text-xs ${isRunning ? 'text-green-600' : 'text-gray-400'}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-green-500' : 'bg-gray-300'}`} />
-                  {isRunning ? 'Running' : 'Stopped'}
-                </span>
+                {isDev ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-600" title="Running in dev mode (launched from CLI)">
+                    <Code2 size={11} className="text-amber-500" />
+                    Dev mode
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center gap-1 text-xs ${isRunning ? 'text-green-600' : 'text-gray-400'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    {isRunning ? 'Running' : 'Stopped'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -215,15 +223,17 @@ export default function ToolCard({ tool, status, onLaunch, onStop, onEdit, onRes
         {!isAdmin && (
           <button
             onClick={isRunning ? onStop : onLaunch}
+            disabled={!isRunning && !hasStable}
+            title={!isRunning && !hasStable ? 'No stable release — run npm run package, then Publish' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               isRunning
                 ? 'bg-red-50 text-red-600 hover:bg-red-100'
                 : hasStable
                   ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                  : 'bg-primary/10 text-primary hover:bg-primary/20'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
           >
-            {isRunning ? <><Square size={12} /> Stop</> : <><Play size={12} /> {hasStable ? 'Launch' : 'Launch Dev'}</>}
+            {isRunning ? <><Square size={12} /> Stop</> : <><Play size={12} /> Launch</>}
           </button>
         )}
         <button
