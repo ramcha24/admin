@@ -126,15 +126,17 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Admin v1.0.8 now supports multi-select issues and auto-closes them after a Build it session.  It includes a new release script (`release.sh`) for automated builds and compliance checks, and enforces a feature-branch workflow via a pre-push hook. The Village component has improved feed rendering with tool badges, and integrates a daily email digest.
+Recent commits have focused on enhancing the Admin tool by adding JSDoc API references for tool modules, implementing multi-select and auto-close functionality for Build it sessions, and introducing a release script for automated deployments. The core architecture remains consistent, with improvements to the village feed and issue tracking capabilities.
 
 **Next steps:**
-- Implement robust error handling within the `release.sh` script to catch potential build failures and provide detailed logging.
-- Refine the 'Try it' panel in the Capabilities page to provide more user-friendly error messages and debugging assistance.
-- Expand the Ideas feature to support more file types and improve the accuracy of multi-idea extraction.
-- Document the detailed schema of the `capabilities` table for advanced users to better understand and customize service contracts.
+- Implement the 'Try it' panel in the Capabilities page to allow users to test service calls directly within the Admin UI.
+- Refactor the workflow engine to support more complex conditional actions based on event payloads.
+- Investigate and address potential performance bottlenecks in the village feed generation, particularly regarding large activity datasets.
 
 **Recent commits:**
+- `3e35724` feat: show JSDoc API reference in Docs tab for each tool
+- `466740a` chore: release v1.0.9
+- `89e4808` docs: add JSDoc/Doxygen-style documentation to all electron modules (#12)
 - `b9ffe73` chore: release v1.0.8
 - `1116e3d` chore: update auto-generated files
 - `f6bd6d4` feat: multi-select issues and auto-close after Build it session (#11)
@@ -142,7 +144,4 @@ Admin v1.0.8 now supports multi-select issues and auto-closes them after a Build
 - `1a97a53` chore: update auto-generated files
 - `a66e9d8` feat: auto-create feature branch on Build it, rename Fix it → Build it (#10)
 - `1d80022` chore: release v1.0.6
-- `63ad8dd` chore: update auto-generated files
-- `edda2f4` chore: village-web feed renders all activity types with tool badges
-- `0b80023` chore: update auto-generated files
 <!-- STATUS:END -->

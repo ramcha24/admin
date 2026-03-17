@@ -1,11 +1,10 @@
 {
-  "last_commit": "9837d0f",
-  "updated_at": "2026-03-17T17:12:39.021Z",
-  "dev_summary": "Recent commits have introduced multi-select functionality and auto-close behavior for issues, streamlining the issue tracking workflow. The `release.sh` script has been added for automated builds and deployments, and a feature branch workflow with pre-push hooks and tool use guards has been enforced for improved development practices. The village feed now renders all activity types with tool badges, enhancing the local social layer.",
+  "last_commit": "3e35724",
+  "updated_at": "2026-03-17T18:03:03.414Z",
+  "dev_summary": "Recent commits have focused on enhancing the Admin tool by adding JSDoc API references for tool modules, implementing multi-select and auto-close functionality for Build it sessions, and introducing a release script for automated deployments. The core architecture remains consistent, with improvements to the village feed and issue tracking capabilities.",
   "next_steps": [
-    "Implement robust error handling for the `release.sh` script to ensure reliable builds.",
-    "Expand the Service Contracts page with more detailed documentation and examples for different service types.",
-    "Investigate and resolve any performance bottlenecks in the village feed rendering, particularly with large activity datasets.",
-    "Add more comprehensive testing for the new feature branch workflow to ensure proper enforcement and prevent regressions."
+    "Implement the 'Try it' panel in the Capabilities page to allow users to test service calls directly within the Admin UI.",
+    "Refactor the workflow engine to support more complex conditional actions based on event payloads.",
+    "Investigate and address potential performance bottlenecks in the village feed generation, particularly regarding large activity datasets."
   ]
 }
