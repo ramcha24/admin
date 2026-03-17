@@ -126,14 +126,17 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have significantly enhanced the Admin tool, including secure feed token management, a robust issue tracker for bugs and feature requests, and the integration of Tantu as a first-class tool. The key focus has been on improving tool discovery, service contracts, and workflow automation, laying the groundwork for a more robust and extensible tool ecosystem.
+Recent commits have focused on improving the Admin tool management capabilities, including adding a tool protocol compliance levels system with badges, implementing a lightweight issues tracker, and integrating Tantu as a first-class tool. The addition of the Village Identity card and improvements to the activity feed further enhance the user experience.
 
 **Next steps:**
-- Implement full support for the inter-tool service contract system, focusing on error handling and logging.
-- Develop a UI for managing and monitoring the running tool service servers, including metrics and debugging capabilities.
-- Expand the tool registry with more example tools and documentation, particularly for the new service contract functionality.
+- Implement the full 'issues tracker' functionality, allowing users to create, assign, and resolve bugs and feature requests.
+- Refine the LLM-generated plan scaffolding process, improving the quality and completeness of the generated code and documentation.
+- Expand the service contract system with additional capabilities and support for more complex interactions between tools.
+- Implement a user interface for managing workflow triggers and conditions, providing a more visual and intuitive way to define automated actions.
+- Add unit tests for critical components, particularly around the tool discovery and launch mechanisms, to improve reliability.
 
 **Recent commits:**
+- `faaf757` Fix documentation accuracy — correct db schema table names and village pipeline
 - `ce61d5c` Sanitize public docs — replace personal tool names with generic examples
 - `e295ba6` Fix Issues 'Fix it' button — write prompt+script to /tmp, exec via bash
 - `0d3b481` Secure feed tokens, last-seen tracking, and email invite buttons
@@ -143,5 +146,4 @@ Recent commits have significantly enhanced the Admin tool, including secure feed
 - `9a13eaa` Track update-dev-status script in repo (scripts/)
 - `17a192b` Add fs:listDir and fs:readFile IPC handlers for codebase browser
 - `4d66f64` Add ToolDetail control panel, ToolDropdown filters, and admin README
-- `8b0cfb7` Add tool protocol compliance levels (L1/L2/L3) with badge on tool cards
 <!-- STATUS:END -->
