@@ -72,7 +72,7 @@ const TYPE_META = {
   feature: { label: 'Feature', icon: Sparkles, bg: 'bg-violet-50',  text: 'text-violet-600', border: 'border-violet-200' },
 }
 
-function IssueRow({ issue, tools, onUpdate, onDelete, onStart }) {
+function IssueRow({ issue, tools, onUpdate, onDelete, onStart, starting }) {
   const [expanded, setExpanded] = useState(false)
   const [editing,  setEditing]  = useState(false)
   const [title, setTitle]       = useState(issue.title)
@@ -177,10 +177,15 @@ function IssueRow({ issue, tools, onUpdate, onDelete, onStart }) {
             {!isDone && (
               <button
                 onClick={() => onStart(issue.id)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
-                title="Start a focused Claude session for this issue"
+                disabled={starting}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                title="Open Claude Code in Terminal with this issue pre-loaded"
               >
-                <Play size={11} /> Fix it
+                {starting
+                  ? <RefreshCw size={11} className="animate-spin" />
+                  : <Play size={11} />
+                }
+                {starting ? 'Opening…' : 'Fix it'}
               </button>
             )}
             <button onClick={() => setEditing(true)} className="p-1 text-gray-300 hover:text-gray-500 transition-colors">
@@ -317,8 +322,16 @@ export default function IssuesPage({ onCountChange }) {
     setIssues(prev => { const next = prev.filter(i => i.id !== id); notifyCount(next); return next })
   }
 
+  const [startingId, setStartingId] = useState(null)
+  const [startError,  setStartError]  = useState(null)
+
   const handleStart = async (id) => {
-    await window.api.startIssueSession(id)
+    setStartingId(id)
+    setStartError(null)
+    const result = await window.api.startIssueSession(id)
+    setStartingId(null)
+    if (!result?.ok) setStartError(result?.error ?? 'Failed to open Terminal')
+    else setTimeout(() => setStartError(null), 4000)
   }
 
   const filtered = issues.filter(i => {
@@ -410,6 +423,11 @@ export default function IssuesPage({ onCountChange }) {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
+          {startError && (
+            <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">
+              Fix it failed: {startError}
+            </div>
+          )}
           {filtered.map(issue => (
             <IssueRow
               key={issue.id}
@@ -418,6 +436,7 @@ export default function IssuesPage({ onCountChange }) {
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               onStart={handleStart}
+              starting={startingId === issue.id}
             />
           ))}
         </div>

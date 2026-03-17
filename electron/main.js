@@ -1336,14 +1336,30 @@ ipcMain.handle('issues:startSession', async (_, id) => {
   if (!tool) return { ok: false, error: 'Tool not found' }
 
   const typeLabel = issue.type === 'bug' ? 'Bug fix' : 'Feature'
-  const desc = issue.description ? `\n\nContext: ${issue.description}` : ''
-  const prompt = `${typeLabel}: ${issue.title}${desc}\n\nDo ONLY this and nothing else.`
-  const escaped = prompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
+  const descPart  = issue.description ? `\n\nContext:\n${issue.description}` : ''
+  const prompt    = `${typeLabel}: ${issue.title}${descPart}\n\nDo ONLY this and nothing else.`
 
-  const cmd = `cd '${tool.dir_path}' && claude "${escaped}"`
-  const script = `tell application "Terminal"\nactivate\ndo script "${cmd}"\nend tell`
+  // Write prompt and a launcher script to /tmp to avoid escaping newlines in osascript strings.
+  const promptPath = path.join(os.tmpdir(), `admin-issue-${id}.txt`)
+  const shPath     = path.join(os.tmpdir(), `admin-issue-${id}.sh`)
+  const safeDir    = tool.dir_path.replace(/'/g, "'\\''")
+  const safePpt    = promptPath.replace(/'/g, "'\\''")
+  const safeSh     = shPath.replace(/'/g, "'\\''")
+
+  fs.writeFileSync(promptPath, prompt)
+  fs.writeFileSync(shPath,
+    `#!/bin/bash\ncd '${safeDir}'\nclaude "$(cat '${safePpt}')"\nrm -f '${safePpt}' '${safeSh}'\n`
+  )
+  fs.chmodSync(shPath, '755')
+
+  const appleScript = `
+    tell application "Terminal"
+      activate
+      do script "bash '${safeSh}'"
+    end tell
+  `
   return new Promise(resolve => {
-    execFile('osascript', ['-e', script], err => resolve({ ok: !err, error: err?.message }))
+    execFile('osascript', ['-e', appleScript], err => resolve({ ok: !err, error: err?.message }))
   })
 })
 
