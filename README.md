@@ -126,16 +126,18 @@ Or if you have the CLI shortcut: just run `admin` from any terminal.
 
 > *Auto-updated 2026-03-17 by the post-commit hook.*
 
-Recent commits have focused on stabilizing the Admin desktop tool, enhancing its reliability and usability. Key changes include single-instance locking, improved error handling for the village server, a 'Try-it' panel for service capabilities, and streamlined file ingestion with support for various document formats. The core architecture remains centered around Electron, React, and Supabase, facilitating a local-first social experience.
+Recent commits have finalized the core admin tool, including a stable release with single-instance locking, a village server error handler, and a 'Try-it' panel for capabilities. Key improvements include file ingestion via `textutil`, a daily email digest, and a streamlined workflow for managing tool service contracts, all leveraging Supabase for data synchronization.
 
 **Next steps:**
-- Implement a comprehensive testing suite for the newly added 'Try-it' panel to ensure accurate JSON results and error handling.
-- Refine the workflow for triggering email digests to optimize delivery frequency and content based on user activity.
-- Investigate and address any remaining performance bottlenecks in the village feed generation process, particularly regarding large datasets.
-- Document the new file ingestion handler and its interaction with the LLM, including potential limitations and configuration options.
-- Add a UI element for users to manually trigger a 'discover' run on the admin app.
+- Implement robust testing for the village feed and interactions, focusing on token refresh and data consistency.
+- Develop a user interface for managing workflow triggers, allowing users to define tool-specific actions based on events.
+- Refactor the Ideas page to improve performance and scalability, particularly for handling large file ingestions and LLM processing.
+- Add a mechanism for monitoring tool service server health and automatically restarting them if they fail.
+- Create a documentation update detailing the Supabase integration and data model for developers.
 
 **Recent commits:**
+- `756c729` chore: release v1.0.1
+- `3666e9e` chore: update dev-status and README
 - `fb25802` Add single-instance lock, stable release publish flow, and release script
 - `a1070a6` Add EADDRINUSE error handling to village server; update dev-status
 - `3f648d6` Add Try-it panel to CapabilitiesPage and Ideas→Issue conversion
@@ -144,6 +146,4 @@ Recent commits have focused on stabilizing the Admin desktop tool, enhancing its
 - `b4abcd9` Ideas: extract text from DOCX/DOC/RTF via textutil before LLM ingestion
 - `c6b5c8d` Ideas: proper file ingestion via dedicated ingestFile handler
 - `51cae13` Ideas: auto-extract ideas from file instead of dumping raw content
-- `e83add4` Issues: simplify tags; Ideas: file ingestion with attachment storage
-- `f2d5103` Sanitize public docs and fix documentation accuracy (#4)
 <!-- STATUS:END -->
