@@ -6,11 +6,11 @@ const NAV = [
   { id: 'ideas',     label: 'Ideas',     icon: Lightbulb },
   { id: 'village',   label: 'Village',   icon: Users },
   { id: 'new',       label: 'New',       icon: Plus },
-  { id: 'workflows', label: 'Workflows', icon: GitBranch, disabled: true },
+  { id: 'workflows', label: 'Workflows', icon: GitBranch },
   { id: 'settings',  label: 'Settings',  icon: Settings },
 ]
 
-export default function Sidebar({ page, setPage }) {
+export default function Sidebar({ page, setPage, villageUnread = 0 }) {
   return (
     <aside className="w-52 bg-sidebar flex flex-col titlebar-safe select-none shrink-0">
       {/* Logo */}
@@ -26,6 +26,7 @@ export default function Sidebar({ page, setPage }) {
       <nav className="flex-1 px-2 py-3 space-y-0.5">
         {NAV.map(({ id, label, icon: Icon, disabled }) => {
           const active = page === id
+          const badge  = id === 'village' && villageUnread > 0 ? villageUnread : null
           return (
             <button
               key={id}
@@ -42,7 +43,12 @@ export default function Sidebar({ page, setPage }) {
             >
               <Icon size={15} />
               {label}
-              {disabled && (
+              {badge != null && (
+                <span className="ml-auto min-w-[18px] h-[18px] inline-flex items-center justify-center rounded-full bg-indigo-500 text-white text-[10px] font-bold px-1">
+                  {badge}
+                </span>
+              )}
+              {disabled && !badge && (
                 <span className="ml-auto text-[10px] text-white/20 uppercase tracking-wider">Soon</span>
               )}
             </button>

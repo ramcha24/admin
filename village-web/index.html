@@ -202,9 +202,14 @@
   </div>
 
   <script>
+    // ── Config: deploy script replaces __SUPABASE_*__ before Cloudflare Pages upload
+    const _SUPA_URL = '__SUPABASE_URL__'
+    const _SUPA_KEY = '__SUPABASE_ANON_KEY__'
+    const IS_SUPABASE = !_SUPA_URL.startsWith('__') && !_SUPA_KEY.startsWith('__')
+
     // ── Helpers ──────────────────────────────────────────────────────────────
     const memberId = new URLSearchParams(location.search).get('member') ?? 'test-villager'
-    const API = ''  // same origin
+    const API = ''  // same origin (local mode only)
 
     function timeAgo(iso) {
       const d = new Date(iso)
@@ -348,6 +353,25 @@
       el.style.height = el.scrollHeight + 'px'
     }
 
+    function appendOptimisticComment(activityId, body) {
+      const card = document.getElementById(`card-${activityId}`)
+      if (!card) return
+      const existing = card.querySelector('.interactions') || (() => {
+        const el = document.createElement('div')
+        el.className = 'interactions'
+        card.querySelector('.comment-box')?.before(el)
+        return el
+      })()
+      existing.insertAdjacentHTML('beforeend', `
+        <div class="interaction-item">
+          <div class="interaction-avatar">💬</div>
+          <div class="interaction-bubble">
+            <div class="interaction-who">You</div>
+            ${escHtml(body)}
+          </div>
+        </div>`)
+    }
+
     async function submitComment(activityId) {
       const input = document.getElementById(`ci-${activityId}`)
       const body  = input?.value?.trim()
@@ -357,30 +381,43 @@
       if (btn) { btn.disabled = true; btn.textContent = '…' }
 
       try {
-        const res = await fetch(`${API}/api/interact`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ activity_id: activityId, member_id: memberId, type: 'comment', payload: { body } })
-        })
-        if (res.ok) {
-          input.value = ''
-          if (btn) { btn.disabled = false; btn.textContent = 'Send' }
-          // Append comment optimistically
-          const card = document.getElementById(`card-${activityId}`)
-          const existing = card.querySelector('.interactions') || (() => {
-            const el = document.createElement('div')
-            el.className = 'interactions'
-            card.querySelector('.comment-box')?.before(el)
-            return el
-          })()
-          existing.insertAdjacentHTML('beforeend', `
-            <div class="interaction-item">
-              <div class="interaction-avatar">💬</div>
-              <div class="interaction-bubble">
-                <div class="interaction-who">You</div>
-                ${escHtml(body)}
-              </div>
-            </div>`)
+        if (IS_SUPABASE) {
+          // Supabase mode: write interaction directly to cloud DB
+          const sUsername = document.querySelector('.header-handle')?.textContent?.replace('@village','').trim() ?? 'ram'
+          const res = await fetch(`${_SUPA_URL}/rest/v1/village_interactions`, {
+            method: 'POST',
+            headers: {
+              'apikey': _SUPA_KEY,
+              'Authorization': `Bearer ${_SUPA_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({
+              username:    sUsername,
+              activity_id: activityId,
+              member_id:   memberId,
+              member_name: document.querySelector('.header-sub')?.textContent?.replace("You're viewing as ",'') ?? memberId,
+              type:        'comment',
+              payload:     { body },
+            }),
+          })
+          if (res.ok || res.status === 201) {
+            input.value = ''
+            if (btn) { btn.disabled = false; btn.textContent = 'Send' }
+            appendOptimisticComment(activityId, body)
+          } else { throw new Error('Failed to submit') }
+        } else {
+          // Local mode: send to village HTTP server
+          const res = await fetch(`${API}/api/interact`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activity_id: activityId, member_id: memberId, type: 'comment', payload: { body } })
+          })
+          if (res.ok) {
+            input.value = ''
+            if (btn) { btn.disabled = false; btn.textContent = 'Send' }
+            appendOptimisticComment(activityId, body)
+          }
         }
       } catch (e) {
         if (btn) { btn.disabled = false; btn.textContent = 'Send' }
@@ -388,18 +425,41 @@
     }
 
     // ── Boot ─────────────────────────────────────────────────────────────────
+    async function loadLocal() {
+      const res = await fetch(`${API}/api/feed?member=${memberId}`)
+      if (!res.ok) throw new Error(res.status === 404 ? 'Member not found' : 'Server error')
+      return res.json()
+    }
+
+    async function loadSupabase() {
+      const res = await fetch(
+        `${_SUPA_URL}/rest/v1/village_feeds?member_id=eq.${encodeURIComponent(memberId)}&limit=1&select=feed_json`,
+        {
+          headers: {
+            'apikey': _SUPA_KEY,
+            'Authorization': `Bearer ${_SUPA_KEY}`,
+          },
+        }
+      )
+      if (!res.ok) throw new Error('Feed not found in cloud')
+      const rows = await res.json()
+      if (!rows.length) throw new Error('No feed found — sync has not run yet or member link is invalid')
+      return rows[0].feed_json
+    }
+
     async function load() {
       const app = document.getElementById('app')
       try {
-        const res = await fetch(`${API}/api/feed?member=${memberId}`)
-        if (!res.ok) throw new Error(res.status === 404 ? 'Member not found' : 'Server error')
-        const data = await res.json()
+        const data = IS_SUPABASE ? await loadSupabase() : await loadLocal()
         app.innerHTML = renderFeed(data)
       } catch (e) {
+        const hint = IS_SUPABASE
+          ? 'Make sure the owner has synced activity from Admin, then refresh.'
+          : 'Make sure Admin is running, then refresh.'
         app.innerHTML = `
           <div class="error-msg">
             <strong>Couldn't load feed.</strong> ${escHtml(e.message)}<br/>
-            <small>Make sure Admin is running, then refresh.</small>
+            <small>${hint}</small>
           </div>`
       }
     }

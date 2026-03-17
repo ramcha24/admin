@@ -4,6 +4,8 @@ const fs = require('fs')
 const { execFile, spawn } = require('child_process')
 const { initDatabase, getDb } = require('./database')
 const { startVillageServer, stopVillageServer, syncGroveActivity, VILLAGE_PORT } = require('./village')
+const { syncToSupabase } = require('./supabase')
+const { scheduleDailyDigest, cancelDigestSchedule, runDailyDigest } = require('./digest')
 
 const isDev = process.argv.includes('--dev')
 const ADMIN_PARENT = path.resolve(__dirname, '../../')  // /Users/ramcha1994/Admin
@@ -40,13 +42,14 @@ function createWindow() {
 app.whenReady().then(() => {
   initDatabase()
   startVillageServer()
+  scheduleDailyDigest(getDb())
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-app.on('before-quit', () => stopVillageServer())
+app.on('before-quit', () => { stopVillageServer(); cancelDigestSchedule() })
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
@@ -501,12 +504,14 @@ ipcMain.handle('tools:openClaudeCode', async (_, toolName, plan) => {
 
 // ─── Event bus ────────────────────────────────────────────────────────────────
 
-ipcMain.handle('events:publish', (_, sourceId, eventType, payload) => {
+ipcMain.handle('events:publish', async (_, sourceId, eventType, payload) => {
   const db = getDb()
   const result = db.prepare(`
     INSERT INTO events (source_tool, event_type, payload)
     VALUES (?, ?, ?)
   `).run(sourceId, eventType, JSON.stringify(payload))
+  // Fire matching workflows asynchronously
+  runWorkflows(eventType, sourceId, payload).catch(e => console.error('[Events] Workflow error:', e.message))
   return { ok: true, id: result.lastInsertRowid }
 })
 
@@ -710,9 +715,10 @@ ipcMain.handle('village:setAccess', (_, { memberId, toolId, level }) => {
   return { ok: true }
 })
 
-ipcMain.handle('village:sync', () => {
+ipcMain.handle('village:sync', async () => {
   syncGroveActivity()
-  return { ok: true }
+  const result = await syncToSupabase(getDb())
+  return { ok: true, supabase: result }
 })
 
 ipcMain.handle('village:getStatus', () => {
@@ -733,6 +739,146 @@ ipcMain.handle('village:updateIdentity', (_, { username, display_name, avatar_em
     UPDATE village_identity SET username=?, display_name=?, avatar_emoji=? WHERE id=1
   `).run(username, display_name, avatar_emoji)
   return { ok: true }
+})
+
+ipcMain.handle('village:getInteractions', () => {
+  const db = getDb()
+  const rows = db.prepare(`
+    SELECT vi.*, vm.name as member_name, vm.avatar_emoji as member_avatar
+    FROM village_interactions vi
+    LEFT JOIN village_members vm ON vm.id = vi.member_id
+    ORDER BY vi.created_at DESC
+    LIMIT 200
+  `).all()
+  return rows.map(r => ({ ...r, payload: JSON.parse(r.payload ?? '{}') }))
+})
+
+ipcMain.handle('village:markRead', (_, ids) => {
+  const db = getDb()
+  const stmt = db.prepare(
+    "UPDATE village_interactions SET read_at = datetime('now') WHERE id = ? AND read_at IS NULL"
+  )
+  for (const id of ids) stmt.run(id)
+  return { ok: true }
+})
+
+ipcMain.handle('village:getUnreadCount', () => {
+  return getDb().prepare(
+    'SELECT COUNT(*) as n FROM village_interactions WHERE read_at IS NULL'
+  ).get().n
+})
+
+ipcMain.handle('village:reply', (_, { activityId, body }) => {
+  const db = getDb()
+  const identity = db.prepare('SELECT * FROM village_identity WHERE id=1').get()
+  const id = `reply-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  db.prepare(`
+    INSERT INTO village_interactions (id, activity_id, member_id, member_name, type, payload, read_at)
+    VALUES (?, ?, 'owner', ?, 'reply', ?, datetime('now'))
+  `).run(id, activityId, identity?.display_name ?? 'You', JSON.stringify({ body }))
+  return { ok: true, id }
+})
+
+ipcMain.handle('village:getTags', () => {
+  const db = getDb()
+  const tags = db.prepare('SELECT * FROM village_tags ORDER BY name ASC').all()
+  const defaults = db.prepare('SELECT * FROM village_tag_defaults').all()
+  return tags.map(t => ({
+    ...t,
+    defaults: defaults.filter(d => d.tag_id === t.id),
+  }))
+})
+
+ipcMain.handle('village:saveTag', (_, { id, name, emoji, defaults: defs = [] }) => {
+  const db = getDb()
+  const tagId = id ?? `tag-${Date.now()}`
+  if (id) {
+    db.prepare('UPDATE village_tags SET name=?, emoji=? WHERE id=?').run(name, emoji ?? '🏷️', id)
+  } else {
+    db.prepare('INSERT INTO village_tags (id, name, emoji) VALUES (?, ?, ?)').run(tagId, name, emoji ?? '🏷️')
+  }
+  // Sync defaults: delete existing then re-insert
+  db.prepare('DELETE FROM village_tag_defaults WHERE tag_id=?').run(tagId)
+  for (const { tool_id, level } of defs) {
+    if (level) {
+      db.prepare('INSERT INTO village_tag_defaults (tag_id, tool_id, level) VALUES (?, ?, ?)').run(tagId, tool_id, level)
+    }
+  }
+  return { ok: true, id: tagId }
+})
+
+ipcMain.handle('village:deleteTag', (_, id) => {
+  const db = getDb()
+  db.prepare('DELETE FROM village_tag_defaults WHERE tag_id=?').run(id)
+  db.prepare('UPDATE village_members SET tag_id=NULL WHERE tag_id=?').run(id)
+  db.prepare('DELETE FROM village_tags WHERE id=?').run(id)
+  return { ok: true }
+})
+
+ipcMain.handle('village:assignTag', (_, { memberId, tagId }) => {
+  getDb().prepare('UPDATE village_members SET tag_id=? WHERE id=?').run(tagId ?? null, memberId)
+  return { ok: true }
+})
+
+// ─── Workflows ────────────────────────────────────────────────────────────────
+
+ipcMain.handle('workflows:getAll', () => {
+  return getDb().prepare('SELECT * FROM workflows ORDER BY created_at DESC').all()
+})
+
+ipcMain.handle('workflows:save', (_, { name, trigger_tool, trigger_event, action_tool, action_type, action_payload }) => {
+  const result = getDb().prepare(`
+    INSERT INTO workflows (name, trigger_tool, trigger_event, action_tool, action_type, action_payload)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(name, trigger_tool, trigger_event, action_tool ?? null, action_type, action_payload ?? null)
+  return { ok: true, id: result.lastInsertRowid }
+})
+
+ipcMain.handle('workflows:update', (_, { id, enabled }) => {
+  getDb().prepare('UPDATE workflows SET enabled=? WHERE id=?').run(enabled ? 1 : 0, id)
+  return { ok: true }
+})
+
+ipcMain.handle('workflows:delete', (_, id) => {
+  getDb().prepare('DELETE FROM workflows WHERE id=?').run(id)
+  return { ok: true }
+})
+
+// Run matching workflows when an event fires
+async function runWorkflows(eventType, sourceTool, payload) {
+  const db = getDb()
+  const wfs = db.prepare(
+    'SELECT * FROM workflows WHERE enabled=1 AND trigger_tool=? AND trigger_event=?'
+  ).all(sourceTool, eventType)
+
+  for (const wf of wfs) {
+    try {
+      if (wf.action_type === 'send_email_digest') {
+        const { runDailyDigest } = require('./digest')
+        const r = await runDailyDigest(db)
+        console.log(`[Workflow] ${wf.name}: digest sent`, r)
+      } else if (wf.action_type === 'sync_village') {
+        syncGroveActivity()
+        const { syncToSupabase } = require('./supabase')
+        await syncToSupabase(db)
+        console.log(`[Workflow] ${wf.name}: village synced`)
+      } else if (wf.action_type === 'log_to_console') {
+        console.log(`[Workflow] ${wf.name}:`, JSON.stringify(payload))
+      }
+    } catch (e) {
+      console.error(`[Workflow] ${wf.name} failed:`, e.message)
+    }
+  }
+}
+
+// ─── Digest ───────────────────────────────────────────────────────────────────
+
+ipcMain.handle('digest:runNow', async () => {
+  try {
+    return await runDailyDigest(getDb())
+  } catch (e) {
+    return { error: e.message }
+  }
 })
 
 // ─── Shell ────────────────────────────────────────────────────────────────────

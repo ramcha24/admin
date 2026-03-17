@@ -28,7 +28,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
-    "better-sqlite3": "^9.4.3"
+    "better-sqlite3": "^9.4.3",
+    "nodemailer": "^6.9.13"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",

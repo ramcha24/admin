@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Save, Check } from 'lucide-react'
+import { Save, Check, Mail, Send } from 'lucide-react'
 
 const CLAUDE_MODELS = [
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (fast, cheap)' },
@@ -8,12 +8,29 @@ const CLAUDE_MODELS = [
 ]
 
 export default function SettingsPage() {
+  const [digestResult, setDigestResult] = useState(null)
+  const [sendingDigest, setSendingDigest] = useState(false)
+
+  const sendDigest = async () => {
+    setSendingDigest(true)
+    setDigestResult(null)
+    const r = await window.api.runDigestNow()
+    setDigestResult(r)
+    setSendingDigest(false)
+  }
   const [settings, setSettings] = useState({
-    llm_provider:    'claude',
-    llm_model:       'claude-haiku-4-5-20251001',
-    anthropic_api_key: '',
-    ollama_base_url: 'http://localhost:11434',
-    ollama_model:    'llama3',
+    llm_provider:       'claude',
+    llm_model:          'claude-haiku-4-5-20251001',
+    anthropic_api_key:  '',
+    ollama_base_url:    'http://localhost:11434',
+    ollama_model:       'llama3',
+    supabase_url:       '',
+    supabase_anon_key:  '',
+    smtp_host:          '',
+    smtp_port:          '587',
+    smtp_user:          '',
+    smtp_pass:          '',
+    smtp_from:          '',
   })
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -125,6 +142,87 @@ export default function SettingsPage() {
             </div>
           </>
         )}
+
+        {/* Supabase (village cloud sync) */}
+        <div className="pt-4 border-t border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-700 mb-1">Village Cloud Sync</h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Optional — connect to Supabase to sync your village feed to the cloud.
+            See <code className="bg-gray-100 px-1 rounded">SUPABASE_SETUP.md</code> for setup instructions.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Supabase Project URL</label>
+              <input
+                type="text"
+                value={settings.supabase_url}
+                onChange={e => set('supabase_url', e.target.value)}
+                placeholder="https://YOUR_PROJECT.supabase.co"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Supabase Anon Key</label>
+              <input
+                type="password"
+                value={settings.supabase_anon_key}
+                onChange={e => set('supabase_anon_key', e.target.value)}
+                placeholder="eyJhbG..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary font-mono"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Email digest (SMTP) */}
+        <div className="pt-4 border-t border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-700 mb-1">Email Digest</h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Send daily village activity digests to members. Works with Gmail (app password), Outlook, or any SMTP.
+          </p>
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 mb-1">SMTP Host</label>
+                <input type="text" value={settings.smtp_host} onChange={e => set('smtp_host', e.target.value)}
+                  placeholder="smtp.gmail.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono" />
+              </div>
+              <div className="w-24">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Port</label>
+                <input type="text" value={settings.smtp_port} onChange={e => set('smtp_port', e.target.value)}
+                  placeholder="587"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Username / Email</label>
+              <input type="text" value={settings.smtp_user} onChange={e => set('smtp_user', e.target.value)}
+                placeholder="you@gmail.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Password / App password</label>
+              <input type="password" value={settings.smtp_pass} onChange={e => set('smtp_pass', e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono" />
+              <p className="text-xs text-gray-400 mt-1">For Gmail: use an App Password (Google Account → Security → App passwords)</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-3">
+            <button onClick={sendDigest} disabled={sendingDigest || !settings.smtp_host}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-40 transition-colors">
+              <Send size={12} /> {sendingDigest ? 'Sending…' : 'Send digest now'}
+            </button>
+            {digestResult && (
+              <span className="text-xs text-gray-500">
+                {digestResult.error ? `Error: ${digestResult.error}` :
+                 digestResult.skipped ? 'SMTP not configured' :
+                 `Sent to ${digestResult.sent} member(s)`}
+              </span>
+            )}
+          </div>
+        </div>
 
         <button
           onClick={handleSave}

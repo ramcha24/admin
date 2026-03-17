@@ -350,4 +350,4 @@ function stopVillageServer() {
   if (server) { server.close(); server = null }
 }
 
-module.exports = { startVillageServer, stopVillageServer, syncGroveActivity, seedTestVillager, VILLAGE_PORT }
+module.exports = { startVillageServer, stopVillageServer, syncGroveActivity, seedTestVillager, getMemberFeed, VILLAGE_PORT }

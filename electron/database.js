@@ -158,6 +158,15 @@ function createSchema() {
   setDefault.run('llm_model', 'claude-haiku-4-5-20251001')
   setDefault.run('ollama_base_url', 'http://localhost:11434')
   setDefault.run('ollama_model', 'llama3')
+  // Supabase (placeholder — fill in Admin Settings to enable cloud sync)
+  setDefault.run('supabase_url', 'https://YOUR_PROJECT.supabase.co')
+  setDefault.run('supabase_anon_key', 'YOUR_ANON_KEY')
+  // Email digest (SMTP) — placeholder, fill in Settings to enable
+  setDefault.run('smtp_host', '')
+  setDefault.run('smtp_port', '587')
+  setDefault.run('smtp_user', '')
+  setDefault.run('smtp_pass', '')
+  setDefault.run('smtp_from', '')
 
   // Seed default village identity
   db.prepare(`
