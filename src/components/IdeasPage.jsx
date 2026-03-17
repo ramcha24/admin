@@ -85,8 +85,20 @@ function EditModal({ idea, onSave, onClose }) {
 
 // ─── Idea card ────────────────────────────────────────────────────────────────
 
+function truncateSummary(text, maxLen = 100) {
+  if (!text) return ''
+  const dot = text.indexOf('.')
+  const short = dot > 0 && dot < maxLen ? text.slice(0, dot + 1) : text.slice(0, maxLen)
+  return short.length < text.length ? short : text
+}
+
 function IdeaCard({ idea, onPlan, onDelete, onEdit, planning }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  const summary = idea.summary ?? ''
+  const truncated = truncateSummary(summary)
+  const isTruncated = truncated.length < summary.length
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
@@ -111,7 +123,15 @@ function IdeaCard({ idea, onPlan, onDelete, onEdit, planning }) {
         </div>
       </div>
 
-      <p className="text-sm text-gray-500 leading-relaxed flex-1">{idea.summary}</p>
+      <p className="text-sm text-gray-500 leading-relaxed flex-1">
+        {expanded ? summary : truncated}
+        {isTruncated && !expanded && (
+          <button onClick={() => setExpanded(true)} className="text-primary/70 ml-1 text-xs hover:text-primary">more →</button>
+        )}
+        {expanded && (
+          <button onClick={() => setExpanded(false)} className="text-gray-300 ml-1 text-xs hover:text-gray-500">less</button>
+        )}
+      </p>
 
       <div className="flex items-center justify-between pt-1 border-t border-gray-50">
         <div className="flex items-center gap-2">
