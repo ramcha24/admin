@@ -59,6 +59,26 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
+// ─── Post-commit hook installer ───────────────────────────────────────────────
+
+function installPostCommitHook(toolDir) {
+  try {
+    const hooksDir = path.join(toolDir, '.git', 'hooks')
+    if (!fs.existsSync(hooksDir)) return  // not a git repo yet
+    const hookPath = path.join(hooksDir, 'post-commit')
+    const hookContent = [
+      '#!/bin/bash',
+      '# Auto-update dev-status.json after each commit (installed by Admin)',
+      '~/.local/bin/update-dev-status "$(git rev-parse --show-toplevel)" &',
+      '',
+    ].join('\n')
+    fs.writeFileSync(hookPath, hookContent)
+    fs.chmodSync(hookPath, 0o755)
+  } catch (e) {
+    console.warn('[installPostCommitHook]', e.message)
+  }
+}
+
 // ─── Tool dev helpers ─────────────────────────────────────────────────────────
 
 function hasClaudeSession(toolDir) {
@@ -147,6 +167,9 @@ ipcMain.handle('tools:discover', () => {
         upsertCap.run(svc.id, manifest.id, svc.description ?? '', JSON.stringify(svc.input ?? {}), JSON.stringify(svc.output ?? {}))
       }
     }
+
+    // Ensure every registered tool has the post-commit hook (idempotent)
+    installPostCommitHook(dirPath)
 
     // Sync dev-status.json written by the post-commit hook
     const devStatusPath = path.join(dirPath, 'dev-status.json')
@@ -523,6 +546,14 @@ ipcMain.handle('tools:scaffold', async (_, name, plan) => {
     // Make dev.sh executable
     fs.chmodSync(path.join(toolDir, 'dev.sh'), 0o755)
 
+    // Git init + post-commit hook
+    try {
+      execSync('git init', { cwd: toolDir })
+      installPostCommitHook(toolDir)
+    } catch (e) {
+      console.warn('[scaffold] git init failed:', e.message)
+    }
+
     // Write tool.json
     const toolJson = {
       id: slug,
@@ -583,6 +614,9 @@ ipcMain.handle('tools:scaffold', async (_, name, plan) => {
 ipcMain.handle('tools:openClaudeCode', async (_, toolName, plan) => {
   const slug = toolName.toLowerCase().replace(/[^a-z0-9]/g, '-')
   const toolDir = path.join(ADMIN_PARENT, slug)
+
+  // Ensure post-commit hook is present (idempotent)
+  installPostCommitHook(toolDir)
 
   // Open Terminal with claude CLI pre-loaded
   const script = `
