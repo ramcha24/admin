@@ -553,7 +553,7 @@ async function llmComplete(messages, { systemPrompt, maxTokens = 1024 } = {}) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: model || ollamaModel,
+        model: ollamaModel,
         messages: systemPrompt
           ? [{ role: 'system', content: systemPrompt }, ...messages]
           : messages,
