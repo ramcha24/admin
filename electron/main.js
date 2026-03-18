@@ -933,11 +933,11 @@ ipcMain.handle('ideas:getAll', () => {
 })
 
 ipcMain.handle('ideas:save', (_, data) => {
-  const { title, summary, raw_text, tags = [], source = '', source_filename = '', attached_file_path = '' } = data
+  const { title, summary, raw_text, tags = [], source = '', source_filename = '', attached_file_path = '', use_case = 'personal' } = data
   const result = getDb().prepare(`
-    INSERT INTO ideas (title, summary, raw_text, tags, source, source_filename, attached_file_path)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(title, summary, raw_text, JSON.stringify(tags), source, source_filename, attached_file_path)
+    INSERT INTO ideas (title, summary, raw_text, tags, source, source_filename, attached_file_path, use_case)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title, summary, raw_text, JSON.stringify(tags), source, source_filename, attached_file_path, use_case)
   return { ok: true, id: result.lastInsertRowid }
 })
 
@@ -1020,10 +1020,10 @@ ipcMain.handle('ideas:openFile', (_, filePath) => {
   return { ok: true }
 })
 
-ipcMain.handle('ideas:update', (_, { id, title, summary, tags }) => {
+ipcMain.handle('ideas:update', (_, { id, title, summary, tags, use_case }) => {
   getDb().prepare(`
-    UPDATE ideas SET title=?, summary=?, tags=?, updated_at=datetime('now') WHERE id=?
-  `).run(title, summary, JSON.stringify(tags ?? []), id)
+    UPDATE ideas SET title=?, summary=?, tags=?, use_case=?, updated_at=datetime('now') WHERE id=?
+  `).run(title, summary, JSON.stringify(tags ?? []), use_case ?? 'personal', id)
   return { ok: true }
 })
 

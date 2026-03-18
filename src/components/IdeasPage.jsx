@@ -11,6 +11,7 @@ function EditModal({ idea, onSave, onClose }) {
   const [summary,  setSummary]  = useState(idea.summary)
   const [tagInput, setTagInput] = useState('')
   const [tags,     setTags]     = useState(idea.tags ?? [])
+  const [useCase,  setUseCase]  = useState(idea.use_case ?? 'personal')
   const [saving,   setSaving]   = useState(false)
   const titleRef = useRef(null)
 
@@ -25,7 +26,7 @@ function EditModal({ idea, onSave, onClose }) {
   const handleSave = async () => {
     if (!title.trim()) return
     setSaving(true)
-    await onSave({ id: idea.id, title: title.trim(), summary: summary.trim(), tags })
+    await onSave({ id: idea.id, title: title.trim(), summary: summary.trim(), tags, use_case: useCase })
     setSaving(false)
     onClose()
   }
@@ -67,6 +68,20 @@ function EditModal({ idea, onSave, onClose }) {
               placeholder="Add tag…"
               className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
             <button onClick={addTag} className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50">Add</button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Use Case</label>
+          <div className="flex gap-2">
+            <button onClick={() => setUseCase('personal')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useCase === 'personal' ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              🔒 Personal
+            </button>
+            <button onClick={() => setUseCase('community')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useCase === 'community' ? 'bg-teal-50 border-teal-300 text-teal-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              🌐 Community
+            </button>
           </div>
         </div>
 
@@ -184,7 +199,16 @@ function IdeaCard({ idea, onPlan, onDelete, onEdit, onCreateIssue, planning }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-semibold text-gray-900 leading-snug">{idea.title}</h3>
+        <div className="flex flex-col gap-1 min-w-0">
+          <h3 className="font-semibold text-gray-900 leading-snug">{idea.title}</h3>
+          <span className={`self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+            idea.use_case === 'community'
+              ? 'bg-teal-50 text-teal-600 border border-teal-200'
+              : 'bg-indigo-50 text-indigo-500 border border-indigo-100'
+          }`}>
+            {idea.use_case === 'community' ? '🌐 Community' : '🔒 Personal'}
+          </span>
+        </div>
         <div className="flex items-center gap-1 shrink-0">
           {confirmDelete ? (
             <>
@@ -268,6 +292,7 @@ function StoreFlow({ onBack, onSaved }) {
   const [mergePanel, setMergePanel] = useState(null)
   const [error, setError]         = useState(null)
   const [attachedFile, setAttachedFile] = useState(null) // { filename, dataBase64 }
+  const [useCase, setUseCase]     = useState('personal')
   const fileRef = useRef()
 
   const loadFile = (file) => {
@@ -321,7 +346,7 @@ function StoreFlow({ onBack, onSaved }) {
   const handleSaveSingle = async () => {
     const fileFields = await saveAttachment()
     const source = attachedFile ? 'file' : 'store'
-    await window.api.saveIdea({ title: polished.title, summary: polished.summary, raw_text: rawText, tags: polished.tags, source, ...fileFields })
+    await window.api.saveIdea({ title: polished.title, summary: polished.summary, raw_text: rawText, tags: polished.tags, source, use_case: useCase, ...fileFields })
     onSaved()
   }
 
@@ -329,7 +354,7 @@ function StoreFlow({ onBack, onSaved }) {
     const fileFields = await saveAttachment()
     const source = attachedFile ? 'file' : 'extract'
     for (const idea of extracted.filter(i => i._include)) {
-      await window.api.saveIdea({ title: idea.title, summary: idea.summary, raw_text: idea.excerpt ?? '', tags: idea.tags ?? [], source, ...fileFields })
+      await window.api.saveIdea({ title: idea.title, summary: idea.summary, raw_text: idea.excerpt ?? '', tags: idea.tags ?? [], source, use_case: useCase, ...fileFields })
     }
     onSaved()
   }
@@ -369,6 +394,19 @@ function StoreFlow({ onBack, onSaved }) {
             <input value={polished.tags.join(', ')}
               onChange={e => setPolished(p => ({ ...p, tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Use Case</label>
+            <div className="flex gap-2">
+              <button onClick={() => setUseCase('personal')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useCase === 'personal' ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                🔒 Personal
+              </button>
+              <button onClick={() => setUseCase('community')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useCase === 'community' ? 'bg-teal-50 border-teal-300 text-teal-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                🌐 Community
+              </button>
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={handleSaveSingle}
@@ -553,6 +591,7 @@ export default function IdeasPage() {
   const [loading,      setLoading]      = useState(true)
   const [planning,     setPlanning]     = useState(null)
   const [search,       setSearch]       = useState('')
+  const [ucFilter,     setUcFilter]     = useState('all') // 'all' | 'personal' | 'community'
   const [editing,      setEditing]      = useState(null)
   const [storing,      setStoring]      = useState(false)
   const [issuingIdea,  setIssuingIdea]  = useState(null)
@@ -571,14 +610,16 @@ export default function IdeasPage() {
   useEffect(() => { load() }, [])
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return ideas
+    let result = ideas
+    if (ucFilter !== 'all') result = result.filter(i => (i.use_case ?? 'personal') === ucFilter)
+    if (!search.trim()) return result
     const q = search.toLowerCase()
-    return ideas.filter(i =>
+    return result.filter(i =>
       i.title.toLowerCase().includes(q) ||
       i.summary.toLowerCase().includes(q) ||
       (i.tags ?? []).some(t => t.toLowerCase().includes(q))
     )
-  }, [ideas, search])
+  }, [ideas, search, ucFilter])
 
   const handlePlan = async (idea) => {
     setPlanning(idea.id)
@@ -643,17 +684,39 @@ export default function IdeasPage() {
         </button>
       </div>
 
-      {/* Search + tag filter */}
+      {/* Search + filter */}
       {ideas.length > 0 && (
-        <div className="mb-5 relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ideas…"
-            className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-              <X size={14} />
-            </button>
-          )}
+        <div className="mb-5 flex flex-col gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ideas…"
+              className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="flex gap-1.5">
+            {[
+              { key: 'all',       label: 'All' },
+              { key: 'personal',  label: '🔒 Personal' },
+              { key: 'community', label: '🌐 Community' },
+            ].map(({ key, label }) => (
+              <button key={key} onClick={() => setUcFilter(key)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  ucFilter === key
+                    ? key === 'community'
+                      ? 'bg-teal-50 border-teal-300 text-teal-700'
+                      : key === 'personal'
+                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                        : 'bg-gray-100 border-gray-300 text-gray-700'
+                    : 'border-gray-200 text-gray-400 hover:bg-gray-50'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -672,7 +735,7 @@ export default function IdeasPage() {
           <div className="text-center py-16 text-gray-400">
             <Search size={28} className="mx-auto mb-3 opacity-30" />
             <p className="font-medium text-sm">No ideas match</p>
-            <button onClick={() => setSearch('')}
+            <button onClick={() => { setSearch(''); setUcFilter('all') }}
               className="mt-2 text-xs text-indigo-500 hover:text-indigo-700 font-medium">
               Clear filters
             </button>
