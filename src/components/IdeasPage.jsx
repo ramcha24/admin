@@ -174,10 +174,12 @@ function truncateSummary(text, maxLen = 100) {
 function IdeaCard({ idea, onPlan, onDelete, onEdit, onCreateIssue, planning }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [showRaw, setShowRaw] = useState(false)
 
   const summary = idea.summary ?? ''
   const truncated = truncateSummary(summary)
   const isTruncated = truncated.length < summary.length
+  const rawText = idea.raw_text ?? ''
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
@@ -214,6 +216,19 @@ function IdeaCard({ idea, onPlan, onDelete, onEdit, onCreateIssue, planning }) {
           <button onClick={() => setExpanded(false)} className="text-gray-300 ml-1 text-xs hover:text-gray-500">less</button>
         )}
       </p>
+
+      {rawText && (
+        <div>
+          <button onClick={() => setShowRaw(p => !p)} className="text-[10px] text-gray-400 hover:text-gray-600 underline underline-offset-2">
+            {showRaw ? 'Hide raw note' : 'Show raw note'}
+          </button>
+          {showRaw && (
+            <pre className="mt-1.5 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[11px] text-gray-500 whitespace-pre-wrap break-words font-mono leading-relaxed max-h-40 overflow-y-auto">
+              {rawText}
+            </pre>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center justify-between pt-1 border-t border-gray-50">
         <div className="flex items-center gap-2">
