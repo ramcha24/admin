@@ -239,6 +239,9 @@ function createSchema() {
   try { db.exec("ALTER TABLE ideas ADD COLUMN source_filename TEXT NOT NULL DEFAULT ''") } catch (_) {}
   try { db.exec("ALTER TABLE ideas ADD COLUMN attached_file_path TEXT NOT NULL DEFAULT ''") } catch (_) {}
 
+  // Ideas use-case tagging: 'personal' | 'community' (additive migration)
+  try { db.exec("ALTER TABLE ideas ADD COLUMN use_case TEXT NOT NULL DEFAULT 'personal'") } catch (_) {}
+
   // Village member auth columns (additive migrations)
   try { db.exec("ALTER TABLE village_members ADD COLUMN feed_token TEXT") } catch (_) {}
   try { db.exec("ALTER TABLE village_members ADD COLUMN last_seen_at TEXT") } catch (_) {}
